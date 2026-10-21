@@ -1,5 +1,7 @@
 package com.pixelden.launcher.ui
 
+import android.content.Context
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -12,231 +14,72 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.sin
 import kotlin.random.Random
 
 /*
- * Маскоты собираются из слоёв: тело (статичная сетка) + оверлеи глаз, рта, хвоста и клешней,
- * у каждого из которых несколько кадров. Поведения (моргание, взгляд, хвост, клешни, дыхание,
- * прыжок, сон) крутятся независимо, поэтому движения не повторяются по кругу.
- *
- * Символы палитры: K контур, o тело, d тень, l блик, w белый, p розовый, y тёмный акцент,
- * s полоски, n нос, i радужка, e зрачок, h блик в глазу. '.' — прозрачно (в оверлее — «не трогать»).
+ * Маскоты — листы спрайтов из assets/mascots/<id>.png (их рисует tools/MascotGen.cs).
+ * Кадр 64x48, все смотрят вправо; при ходьбе влево отражаем. Анимация только целыми кадрами
+ * и целыми пикселями — никакого растяжения, поэтому ничего не «плывёт» и не дрожит.
  */
 
-private typealias Grid = List<String>
-
-data class Layer(val x: Int, val y: Int, val frames: List<Grid>)
-
-data class Mascot(
-    val id: String,
-    val name: String,
-    val note: String,
-    val body: Grid,
-    val palette: Map<Char, Color>,
-    val eyes: List<Pair<Int, Int>>,
-    val mouth: Pair<Int, Int>?,
-    val tail: Layer? = null,
-    val clawLeft: Layer? = null,
-    val clawRight: Layer? = null,
-    /** Откуда вылетают «Z» во сне (в пикселях спрайта). */
-    val zFrom: Pair<Int, Int>,
-) {
-    /** Ширина холста с учётом хвоста и клешней, которые торчат за контур тела. */
-    val width = (listOf(body.maxOf { it.length }) +
-        listOfNotNull(tail, clawLeft, clawRight).map { l -> l.x + l.frames.maxOf { f -> f.maxOf { it.length } } }).max()
-    val height = body.size
-}
-
-// ---------------------------------------------------------------- кадры глаз (3×3) и рта
-
-enum class Eyes { OPEN, LOOK_L, LOOK_R, HALF, CLOSED, HAPPY }
-
-private val EYE_FRAMES: Map<Eyes, Grid> = mapOf(
-    Eyes.OPEN to listOf("hei", "iei", "iii"),
-    Eyes.LOOK_L to listOf("eih", "eii", "iii"),
-    Eyes.LOOK_R to listOf("hie", "iie", "iii"),
-    Eyes.HALF to listOf("ooo", "iei", "iii"),
-    Eyes.CLOSED to listOf("ooo", "ooo", "KKK"),
-    Eyes.HAPPY to listOf("ooo", "oKo", "KoK"),
-)
-
-private val MOUTH_CLOSED: Grid = listOf(".KK.")
-private val MOUTH_OPEN: Grid = listOf("KppK", ".KK.")
-
-// ---------------------------------------------------------------- кот
-
-private val CAT_BODY: Grid = listOf(
-    "..K............K..",
-    "..KK..........KK..",
-    "..KpK........KpK..",
-    "..KppKKKKKKKKppK..",
-    ".KooooooooooooooK.",
-    ".KoosoooooooosooK.",
-    "KooooooooooooooooK",
-    "KooooooooooooooooK",
-    "KooooooooooooooooK",
-    "KooooooooooooooooK",
-    "KwwooooonnooooowwK",
-    ".KwwoooooooooowwK.",
-    "..KKooooooooooKK..",
-    "...KooooooooooK...",
-    "..KoowwwwwwwwooK..",
-    "..KoowwwwwwwwooK..",
-    "..KsoowwwwwwoosK..",
-    "..KooKwwwwwwKooK..",
-    "..KwwKKKKKKKKwwK..",
-    "...KK........KK...",
-)
-
-private val CAT_TAIL = Layer(
-    15, 10, listOf(
-        listOf("....K.", "...KoK", "...KoK", "..KoK.", "..KoK.", ".KoK..", "KoK...", "KK...."),
-        listOf("......", "....KK", "...KoK", "..KoK.", ".KoK..", ".KoK..", "KoK...", "KK...."),
-        listOf("......", "......", "....KK", "..KKoK", ".KooK.", "KoKK..", "KoK...", "KK...."),
-    )
-)
-
-// ---------------------------------------------------------------- лис
-
-private val FOX_BODY: Grid = listOf(
-    "..K............K..",
-    "..KK..........KK..",
-    "..KyK........KyK..",
-    "..KyyKKKKKKKKyyK..",
-    ".KooooooooooooooK.",
-    ".KllooooooooooooK.",
-    "KooooooooooooooooK",
-    "KooooooooooooooooK",
-    "KooooooooooooooooK",
-    "KwoooooooooooooowK",
-    "KwwwoooonnoooowwwK",
-    ".KwwwwwwwwwwwwwwK.",
-    "..KKwwwwwwwwwwKK..",
-    "...KooooooooooK...",
-    "..KoowwwwwwwwooK..",
-    "..KoowwwwwwwwooK..",
-    "..KooowwwwwwoooK..",
-    "..KyyKwwwwwwKyyK..",
-    "..KyyKKKKKKKKyyK..",
-    "...KK........KK...",
-)
-
-private val FOX_TAIL = Layer(
-    15, 9, listOf(
-        listOf("....KK.", "...KwwK", "..KwwwK", "..KoooK", ".KoooK.", ".KoooK.", "KoooK..", "KooK...", "KKK...."),
-        listOf(".......", "....KKK", "...KwwK", "..KoowK", ".KoooK.", ".KoooK.", "KoooK..", "KooK...", "KKK...."),
-        listOf(".......", ".......", ".......", "...KKKK", ".KKoowK", "KoooowK", "KoooKK.", "KooK...", "KKK...."),
-    )
-)
-
-// ---------------------------------------------------------------- краб
-
-private val CRAB_BODY: Grid = listOf(
-    "......KKKKKKKKKKKK......",
-    ".....KooooooooooooK.....",
-    "....KoollooooooooooK....",
-    "....KooooooooooooooK....",
-    "...KooooooooooooooooK...",
-    "...KooooooooooooooooK...",
-    "...KooooooooooooooooK...",
-    "...KooooooooooooooooK...",
-    "...KooooooooooooooooK...",
-    "....KddddddddddddddK....",
-    ".....KKKKKKKKKKKKKK.....",
-    "....K.K.K......K.K.K....",
-    "...K.K.K........K.K.K...",
-)
-
-private val CLAW_DOWN: Grid = listOf(".....", ".....", "KKK..", "KoK..", "KoKKK", "KoooK")
-private val CLAW_OPEN: Grid = listOf(".....", "KK.KK", "KoKoK", ".KooK", "..KKK", "...KK")
-private val CLAW_UP: Grid = listOf("KK...", "KoK..", "KoKK.", "KooK.", ".KoK.", "..KoK")
-private fun Grid.mirror(): Grid = map { it.reversed() }
-
-private val CRAB_CLAW_L = Layer(0, 2, listOf(CLAW_DOWN, CLAW_OPEN, CLAW_UP))
-private val CRAB_CLAW_R = Layer(19, 2, listOf(CLAW_DOWN.mirror(), CLAW_OPEN.mirror(), CLAW_UP.mirror()))
-
-// ---------------------------------------------------------------- набор
-
-private fun c(hex: Long) = Color(hex)
-
-private fun catPalette(body: Long, stripe: Long, iris: Long, chest: Long = 0xFFF6F1EA, outline: Long = 0xFF1D1A22) = mapOf(
-    'K' to c(outline), 'o' to c(body), 's' to c(stripe), 'w' to c(chest),
-    'p' to c(0xFFE89AA6), 'n' to c(0xFFE07A8A), 'i' to c(iris), 'e' to c(0xFF121014), 'h' to c(0xFFFFFFFF),
-)
+data class Mascot(val id: String, val name: String, val note: String)
 
 val MASCOTS = listOf(
-    Mascot(
-        "pinch", "Pinch", "Оранжевый пиксельный краб (в духе Claude)",
-        CRAB_BODY,
-        mapOf(
-            'K' to c(0xFF3A1F18), 'o' to c(0xFFD97757), 'd' to c(0xFFB35A3C), 'l' to c(0xFFF2A585),
-            'i' to c(0xFF1B1A1F), 'e' to c(0xFF1B1A1F), 'h' to c(0xFFFFFFFF), 'p' to c(0xFF8E3A2A),
-        ),
-        eyes = listOf(8 to 4, 13 to 4), mouth = 10 to 7,
-        clawLeft = CRAB_CLAW_L, clawRight = CRAB_CLAW_R,
-        zFrom = 18 to 0,
-    ),
-    Mascot(
-        "ember", "Ember", "Огненный лис (в духе Kit из Firefox)",
-        FOX_BODY,
-        mapOf(
-            'K' to c(0xFF2A160E), 'o' to c(0xFFF2762E), 'l' to c(0xFFFFA25E), 'y' to c(0xFF5A2410),
-            'w' to c(0xFFFFF4E6), 'n' to c(0xFF2A160E), 'i' to c(0xFF7A3B10), 'e' to c(0xFF120A06),
-            'h' to c(0xFFFFFFFF), 'p' to c(0xFFE07A8A),
-        ),
-        eyes = listOf(4 to 7, 11 to 7), mouth = 7 to 11,
-        tail = FOX_TAIL, zFrom = 15 to 0,
-    ),
-    Mascot(
-        "sprocket", "Sprocket", "Серый полосатый кот",
-        CAT_BODY, catPalette(0xFF8E8E99, 0xFF5B5B66, 0xFF7FB24A),
-        eyes = listOf(4 to 7, 11 to 7), mouth = 7 to 11, tail = CAT_TAIL, zFrom = 15 to 0,
-    ),
-    Mascot(
-        "nyx", "Nyx", "Чёрный кот с зелёными глазами",
-        CAT_BODY, catPalette(0xFF2E2B35, 0xFF26232C, 0xFFB8E05A, chest = 0xFF3C3844, outline = 0xFF0C0B0F),
-        eyes = listOf(4 to 7, 11 to 7), mouth = 7 to 11, tail = CAT_TAIL, zFrom = 15 to 0,
-    ),
-    Mascot(
-        "mango", "Mango", "Рыжий кот",
-        CAT_BODY, catPalette(0xFFE8913A, 0xFFB9621B, 0xFF4E9A3A),
-        eyes = listOf(4 to 7, 11 to 7), mouth = 7 to 11, tail = CAT_TAIL, zFrom = 15 to 0,
-    ),
-    Mascot(
-        "frost", "Frost", "Белый кот с голубыми глазами",
-        CAT_BODY, catPalette(0xFFEDEDF2, 0xFFD9D9E2, 0xFF4C9BE8, chest = 0xFFFFFFFF, outline = 0xFF5A5866),
-        eyes = listOf(4 to 7, 11 to 7), mouth = 7 to 11, tail = CAT_TAIL, zFrom = 15 to 0,
-    ),
+    Mascot("pinch", "Pinch", "Оранжевый кирпичик (в духе Claude)"),
+    Mascot("ember", "Ember", "Огненный лис (в духе Kit из Firefox)"),
+    Mascot("sprocket", "Sprocket", "Серый полосатый кот"),
+    Mascot("nyx", "Nyx", "Чёрный кот с зелёными глазами"),
+    Mascot("mango", "Mango", "Рыжий полосатый кот"),
+    Mascot("frost", "Frost", "Белый кот с голубыми глазами"),
 )
 
 fun mascotById(id: String) = MASCOTS.firstOrNull { it.id == id } ?: MASCOTS.first()
 
-enum class MascotMood { IDLE, SLEEP, HAPPY }
+enum class MascotMood { IDLE, SLEEP }
 
-/** Мгновенное состояние всех слоёв. */
+private class Sheet(val image: ImageBitmap, val fw: Int, val fh: Int, val index: Map<String, Int>)
+
+private object SheetCache {
+    private val sheets = HashMap<String, Sheet>()
+    private var meta: Pair<IntSize, List<String>>? = null
+
+    fun get(context: Context, id: String): Sheet = sheets.getOrPut(id) {
+        val (size, names) = meta ?: context.assets.open("mascots/frames.txt").bufferedReader().use { r ->
+            val (w, h) = r.readLine().trim().split(" ").map { it.toInt() }
+            IntSize(w, h) to r.readLine().trim().split(" ")
+        }.also { meta = it }
+        val opts = BitmapFactory.Options().apply { inScaled = false }
+        val bmp = context.assets.open("mascots/$id.png").use { BitmapFactory.decodeStream(it, null, opts) }!!
+        Sheet(bmp.asImageBitmap(), size.width, size.height, names.withIndex().associate { it.value to it.index })
+    }
+}
+
+/** Что маскот делает прямо сейчас. */
 private data class Pose(
-    val eyes: Eyes = Eyes.OPEN,
-    val mouthOpen: Boolean = false,
-    val tail: Int = 0,
-    val clawL: Int = 0,
-    val clawR: Int = 0,
-    val dy: Float = 0f,
-    val squash: Float = 1f,
+    val frame: String = "sit0",
+    val x: Int = 0,          // смещение по «полу», в пикселях спрайта
+    val dy: Int = 0,         // подъём (прыжок), в пикселях спрайта
+    val faceLeft: Boolean = false,
     val zs: List<Pair<Float, Float>> = emptyList(),
 )
 
 /**
- * Рисует маскота. [pixel] — размер пикселя спрайта в dp.
- * [jumpKey] — увеличьте, чтобы маскот обрадовался и подпрыгнул. [talking] — шевелит ртом.
+ * Маскот. [pixel] — размер пикселя спрайта в dp; [roam] — сколько пикселей спрайта он может
+ * бродить по горизонтали (0 — сидит на месте). [jumpKey] — увеличьте, чтобы обрадовался.
+ * [talking] — пока говорит, смотрит на зрителя.
  */
 @Composable
 fun MascotSprite(
@@ -244,169 +87,132 @@ fun MascotSprite(
     pixel: Int,
     mood: MascotMood,
     animate: Boolean,
+    modifier: Modifier = Modifier,
     jumpKey: Int = 0,
     talking: Boolean = false,
-    /** Запас сверху под прыжок и «Z»; в превью настроек не нужен. */
-    headroom: Int = 8,
-    modifier: Modifier = Modifier,
+    roam: Int = 0,
+    headroom: Int = 10,
 ) {
-    var pose by remember(mascot.id) { mutableStateOf(Pose()) }
-    var excited by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val sheet = remember(mascot.id) { SheetCache.get(context, mascot.id) }
+    var pose by remember(mascot.id) { mutableStateOf(Pose(x = roam)) }
+    var busy by remember { mutableStateOf(false) }   // прыжок перебивает остальное
 
-    // Основные поведения. Каждое — своя корутина со своим ритмом.
-    LaunchedEffect(mascot.id, mood, animate) {
-        pose = Pose(eyes = if (mood == MascotMood.SLEEP) Eyes.CLOSED else Eyes.OPEN)
-        if (!animate) return@LaunchedEffect
+    LaunchedEffect(mascot.id, mood, animate, roam, talking) {
+        if (!animate) { pose = pose.copy(frame = if (mood == MascotMood.SLEEP) "sleep0" else "sit0", dy = 0, zs = emptyList()); return@LaunchedEffect }
+        if (mood == MascotMood.SLEEP) {
+            var t = 0
+            while (isActive) {
+                val zs = pose.zs.map { (age, j) -> (age + 0.04f) to j }.filter { it.first < 1f } +
+                    (if (t % 30 == 0) listOf(0f to Random.nextFloat()) else emptyList())
+                pose = pose.copy(frame = if ((t / 12) % 2 == 0) "sleep0" else "sleep1", dy = 0, zs = zs)
+                delay(100); t++
+            }
+        }
+        if (talking) {
+            // Говорит — повернулся к зрителю и иногда моргает.
+            while (isActive) {
+                if (!busy) pose = pose.copy(frame = "look", zs = emptyList())
+                delay(Random.nextLong(1500, 3200))
+                if (!busy) { pose = pose.copy(frame = "lookblink"); delay(140) }
+            }
+        }
         coroutineScope {
-            // Дыхание: медленное сжатие по синусу.
+            // Главный цикл поведения: сидеть → (посмотреть на зрителя | пройтись | помечтать) → …
             launch {
-                var t = 0f
+                pose = pose.copy(zs = emptyList())
                 while (isActive) {
-                    val period = if (mood == MascotMood.SLEEP) 3200f else 2200f
-                    val depth = if (mood == MascotMood.SLEEP) 0.05f else 0.03f
-                    if (!excited) pose = pose.copy(squash = 1f - depth * ((sin(t / period * 2 * PI).toFloat() + 1f) / 2f))
-                    delay(80); t += 80f
-                }
-            }
-            if (mood == MascotMood.SLEEP) {
-                // Сон: поднимающиеся «Z».
-                launch {
-                    while (isActive) {
-                        val moved = pose.zs.map { (age, x) -> (age + 0.05f) to x }.filter { it.first < 1f }
-                        val spawn = if (Random.nextInt(24) == 0 && moved.size < 3) listOf(0f to Random.nextFloat()) else emptyList()
-                        pose = pose.copy(zs = moved + spawn, eyes = Eyes.CLOSED)
-                        delay(110)
-                    }
-                }
-                return@coroutineScope
-            }
-            // Моргание в несколько фаз, иногда двойное.
-            launch {
-                while (isActive) {
-                    delay(Random.nextLong(2200, 6000))
-                    if (excited) continue
-                    repeat(if (Random.nextInt(5) == 0) 2 else 1) {
-                        val keep = pose.eyes
-                        for (e in listOf(Eyes.HALF, Eyes.CLOSED, Eyes.HALF)) { pose = pose.copy(eyes = e); delay(55) }
-                        pose = pose.copy(eyes = if (keep == Eyes.HALF || keep == Eyes.CLOSED) Eyes.OPEN else keep)
-                        delay(120)
-                    }
-                }
-            }
-            // Взгляд по сторонам.
-            launch {
-                while (isActive) {
-                    delay(Random.nextLong(3500, 9000))
-                    if (excited) continue
-                    val dir = if (Random.nextBoolean()) Eyes.LOOK_L else Eyes.LOOK_R
-                    pose = pose.copy(eyes = dir)
-                    delay(Random.nextLong(700, 1800))
-                    if (Random.nextInt(3) == 0) {
-                        pose = pose.copy(eyes = if (dir == Eyes.LOOK_L) Eyes.LOOK_R else Eyes.LOOK_L)
-                        delay(Random.nextLong(500, 1200))
-                    }
-                    if (pose.eyes == Eyes.LOOK_L || pose.eyes == Eyes.LOOK_R) pose = pose.copy(eyes = Eyes.OPEN)
-                }
-            }
-            // Хвост: серии виляний с паузами.
-            mascot.tail?.let { tail ->
-                launch {
-                    val cycle = listOf(0, 1, 2, 1)
-                    while (isActive) {
-                        val wags = Random.nextInt(4, 12)
-                        val speed = Random.nextLong(110, 220)
-                        repeat(wags) { i -> pose = pose.copy(tail = cycle[i % cycle.size] % tail.frames.size); delay(speed) }
-                        pose = pose.copy(tail = 0)
-                        delay(Random.nextLong(1500, 5000))
-                    }
-                }
-            }
-            // Клешни: щёлкнуть или помахать.
-            if (mascot.clawLeft != null) {
-                launch {
-                    while (isActive) {
-                        delay(Random.nextLong(2500, 7000))
-                        if (excited) continue
-                        when (Random.nextInt(3)) {
-                            0 -> repeat(3) { pose = pose.copy(clawL = 1, clawR = 1); delay(120); pose = pose.copy(clawL = 0, clawR = 0); delay(120) }
-                            1 -> repeat(4) { pose = pose.copy(clawR = 2); delay(200); pose = pose.copy(clawR = 0); delay(160) }
-                            else -> { pose = pose.copy(clawL = 2); delay(500); pose = pose.copy(clawL = 1); delay(150); pose = pose.copy(clawL = 0) }
+                    sitFor(Random.nextLong(2500, 6000), { busy }) { pose = pose.copy(frame = it) }
+                    when (Random.nextInt(10)) {
+                        in 0..3 -> lookAtViewer({ busy }) { pose = pose.copy(frame = it) }
+                        in 4..7 -> if (roam > 0) {
+                            val target = Random.nextInt(0, roam + 1)
+                            walkTo(target, { pose }, { busy }) { pose = it }
+                        }
+                        else -> { // радостно поёрзать
+                            if (!busy) { pose = pose.copy(frame = "happy"); delay(900) }
                         }
                     }
                 }
             }
-            // Иногда маленький подскок на месте.
-            launch {
-                while (isActive) {
-                    delay(Random.nextLong(9000, 20000))
-                    if (excited) continue
-                    pose = pose.copy(dy = -1f); delay(120); pose = pose.copy(dy = 0f)
-                }
-            }
         }
     }
 
-    // Рот, пока маскот «говорит».
-    LaunchedEffect(talking, animate) {
-        if (!talking || !animate) { pose = pose.copy(mouthOpen = false); return@LaunchedEffect }
-        while (isActive) {
-            pose = pose.copy(mouthOpen = !pose.mouthOpen)
-            delay(Random.nextLong(110, 200))
-        }
-    }
-
-    // Радость: присесть → прыжок с растяжением → приземление → глаза ^^.
+    // Радость при запуске приложения: подпрыгнуть и улыбнуться.
     LaunchedEffect(jumpKey) {
         if (jumpKey == 0 || !animate || mood == MascotMood.SLEEP) return@LaunchedEffect
-        excited = true
-        val claws = mascot.clawLeft != null
-        pose = pose.copy(squash = 0.82f, eyes = Eyes.HAPPY); delay(110)
-        for (s in 1..6) { pose = pose.copy(dy = -s.toFloat(), squash = 1.12f, clawL = if (claws) 2 else 0, clawR = if (claws) 2 else 0); delay(28) }
-        delay(60)
-        for (s in 5 downTo 0) { pose = pose.copy(dy = -s.toFloat(), squash = 1.05f); delay(32) }
-        pose = pose.copy(squash = 0.85f); delay(90)
-        pose = pose.copy(squash = 1f, clawL = 0, clawR = 0); delay(900)
-        pose = pose.copy(eyes = Eyes.OPEN)
-        excited = false
+        busy = true
+        for (dy in listOf(2, 4, 6, 7, 7, 6, 4, 2, 0)) { pose = pose.copy(frame = "jump", dy = dy); delay(45) }
+        pose = pose.copy(frame = "happy", dy = 0); delay(900)
+        pose = pose.copy(frame = "sit0")
+        busy = false
     }
 
-    Canvas(modifier.size((mascot.width * pixel).dp, ((mascot.height + headroom) * pixel).dp)) {
+    val widthPx = sheet.fw + roam
+    Canvas(modifier.size((widthPx * pixel).dp, ((sheet.fh + headroom) * pixel).dp)) {
         val px = pixel.dp.toPx()
         val p = pose
-        val baseTop = headroom * px
-        withTransform({
-            translate(top = p.dy * px)
-            // Сжатие от «пола», чтобы маскот не отрывался от земли при дыхании.
-            scale(scaleX = 2f - p.squash, scaleY = p.squash, pivot = Offset(size.width / 2, size.height))
-        }) {
-            mascot.tail?.let { drawGrid(it.frames[p.tail % it.frames.size], it.x, it.y, mascot.palette, px, baseTop) }
-            drawGrid(mascot.body, 0, 0, mascot.palette, px, baseTop)
-            mascot.clawLeft?.let { drawGrid(it.frames[p.clawL % it.frames.size], it.x, it.y, mascot.palette, px, baseTop) }
-            mascot.clawRight?.let { drawGrid(it.frames[p.clawR % it.frames.size], it.x, it.y, mascot.palette, px, baseTop) }
-            val eye = EYE_FRAMES.getValue(p.eyes)
-            for ((ex, ey) in mascot.eyes) drawGrid(eye, ex, ey, mascot.palette, px, baseTop)
-            mascot.mouth?.let { (mx, my) -> drawGrid(if (p.mouthOpen) MOUTH_OPEN else MOUTH_CLOSED, mx, my, mascot.palette, px, baseTop) }
+        val col = sheet.index[p.frame] ?: 0
+        val left = p.x * px
+        val top = (headroom - p.dy) * px
+        val w = sheet.fw * px
+        val h = sheet.fh * px
+        val draw: DrawScope.() -> Unit = {
+            drawImage(
+                sheet.image,
+                srcOffset = IntOffset(col * sheet.fw, 0),
+                srcSize = IntSize(sheet.fw, sheet.fh),
+                dstOffset = IntOffset(left.toInt(), top.toInt()),
+                dstSize = IntSize(w.toInt(), h.toInt()),
+                filterQuality = FilterQuality.None,
+            )
         }
-        // «Z» во сне летят вверх-вправо и тают.
-        val zColor = mascot.palette['h'] ?: Color.White
+        if (p.faceLeft) scale(-1f, 1f, pivot = Offset(left + w / 2, top + h / 2), block = draw) else draw()
+
+        // «Z» во сне: из-за головы вверх, тают.
         for ((age, jitter) in p.zs) {
-            val zx = (mascot.zFrom.first + age * 4 + jitter * 2) * px
-            val zy = baseTop + (mascot.zFrom.second - age * 7) * px
-            val big = age > 0.45f
-            drawZ(zx, zy, px * (if (big) 1f else 0.7f), zColor.copy(alpha = (1f - age).coerceIn(0f, 1f)))
+            val zx = left + (if (p.faceLeft) 10f else 48f + jitter * 4) * px
+            val zy = top + (20f - age * 26f) * px
+            drawZ(zx, zy, px * (if (age > 0.4f) 2f else 1.4f), Color.White.copy(alpha = (1f - age).coerceIn(0f, 1f)))
         }
     }
 }
 
-private fun DrawScope.drawGrid(grid: Grid, ox: Int, oy: Int, palette: Map<Char, Color>, px: Float, top: Float) {
-    grid.forEachIndexed { y, row ->
-        row.forEachIndexed { x, ch ->
-            if (ch == '.') return@forEachIndexed
-            val color = palette[ch] ?: return@forEachIndexed
-            // +0.5px перекрытие убирает щели между пикселями на дробной плотности.
-            drawRect(color, Offset((ox + x) * px, top + (oy + y) * px), Size(px + 0.5f, px + 0.5f))
+private suspend fun sitFor(ms: Long, busy: () -> Boolean, set: (String) -> Unit) {
+    var left = ms
+    var breath = 0
+    while (left > 0) {
+        if (!busy()) {
+            if (Random.nextInt(7) == 0) { set("blink"); delay(130); left -= 130 }
+            set(if (breath % 2 == 0) "sit0" else "sit1")
         }
+        val step = Random.nextLong(650, 900)
+        delay(step); left -= step; breath++
     }
+}
+
+/** Поворачивает голову к зрителю — «ломает четвёртую стену». */
+private suspend fun lookAtViewer(busy: () -> Boolean, set: (String) -> Unit) {
+    if (busy()) return
+    set("look")
+    delay(Random.nextLong(1400, 2800))
+    if (Random.nextBoolean() && !busy()) { set("lookblink"); delay(140); set("look"); delay(Random.nextLong(600, 1400)) }
+    if (!busy()) set("sit0")
+}
+
+private suspend fun walkTo(target: Int, pose: () -> Pose, busy: () -> Boolean, set: (Pose) -> Unit) {
+    var phase = 0
+    while (pose().x != target) {
+        if (busy()) { delay(100); continue }
+        val p = pose()
+        val dir = if (target > p.x) 1 else -1
+        // 2 пикселя спрайта за кадр: шаг выглядит естественно при 8 фазах ходьбы.
+        val nx = if (dir > 0) minOf(p.x + 2, target) else maxOf(p.x - 2, target)
+        set(p.copy(frame = "walk${phase % 8}", x = nx, faceLeft = dir < 0))
+        phase++
+        delay(85)
+    }
+    set(pose().copy(frame = "sit0"))
 }
 
 private val Z_GLYPH = listOf("KKK", "..K", ".K.", "K..", "KKK")

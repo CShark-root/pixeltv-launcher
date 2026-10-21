@@ -271,7 +271,7 @@ private fun Header(
                 if (text != null) {
                     Box(
                         Modifier
-                            .padding(end = 10.dp, bottom = (cfg.mascotScale * 6).dp)
+                            .padding(end = 4.dp, bottom = (cfg.mascotScale * 24).dp)
                             .pixelBox(t.colors.dim.copy(alpha = 0.5f), t.colors.surface, 2)
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) { PText(text, 15.sp, t.colors.text) }
@@ -283,6 +283,7 @@ private fun Header(
                     animate = t.animations,
                     jumpKey = jump,
                     talking = bubble != null,
+                    roam = 90,
                 )
             }
         }
