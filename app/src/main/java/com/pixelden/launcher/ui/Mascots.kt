@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -56,7 +57,11 @@ fun mascotById(id: String) = MASCOTS.firstOrNull { it.id == id } ?: MASCOTS.firs
 
 enum class MascotMood { IDLE, SLEEP }
 
-private class Sheet(val image: ImageBitmap, val fw: Int, val fh: Int, val index: Map<String, Int>)
+/**
+ * [left] — первая видимая колонка спрайта (без свечения), [headY] — строка на уровне глаз.
+ * Считаются по кадру sit0 при загрузке, чтобы реплика вставала рядом с любым маскотом.
+ */
+private class Sheet(val image: ImageBitmap, val fw: Int, val fh: Int, val index: Map<String, Int>, val left: Int, val right: Int, val headY: Int)
 
 private object SheetCache {
     private val sheets = HashMap<String, Sheet>()
@@ -69,7 +74,19 @@ private object SheetCache {
         }.also { meta = it }
         val opts = BitmapFactory.Options().apply { inScaled = false }
         val bmp = context.assets.open("mascots/$id.png").use { BitmapFactory.decodeStream(it, null, opts) }!!
-        Sheet(bmp.asImageBitmap(), size.width, size.height, names.withIndex().associate { it.value to it.index })
+        var left = size.width; var right = 0; var topRow = size.height; var bottomRow = 0
+        for (y in 0 until size.height) for (x in 0 until size.width) {
+            if ((bmp.getPixel(x, y) ushr 24) > 200) {
+                if (x < left) left = x
+                if (x > right) right = x
+                if (y < topRow) topRow = y
+                if (y > bottomRow) bottomRow = y
+            }
+        }
+        Sheet(
+            bmp.asImageBitmap(), size.width, size.height, names.withIndex().associate { it.value to it.index },
+            left = left, right = right, headY = topRow + (bottomRow - topRow) * 2 / 5,
+        )
     }
 }
 
@@ -163,20 +180,20 @@ fun MascotSprite(
     val t = LocalDen.current
     Box(modifier.size((widthPx * pixel).dp, ((sheet.fh + headroom) * pixel).dp)) {
     if (bubble != null) {
-        // Облачко слева от головы: при любом размере маскота остаётся на экране и ходит вместе с ним.
-        Box(
+        // Реплика слева от маскота: хвостик-указатель касается видимого края спрайта, по высоте — на уровне глаз.
+        SpeechBubble(
+            bubble,
             Modifier
                 .align(Alignment.TopEnd)
                 .offset {
+                    val gapPx = 2.dp.roundToPx()
                     IntOffset(
-                        -((roam - pose.x + sheet.fw) * pixel).dp.roundToPx() + (sheet.fw * pixel / 5).dp.roundToPx(),
-                        ((headroom + sheet.fh / 4) * pixel).dp.roundToPx(),
+                        -((roam - pose.x + sheet.fw - (if (pose.faceLeft) sheet.fw - 1 - sheet.right else sheet.left)) * pixel).dp.roundToPx() - gapPx,
+                        ((headroom + sheet.headY) * pixel).dp.roundToPx() - 20.dp.roundToPx(),
                     )
                 }
-                .wrapContentWidth(unbounded = true)
-                .pixelBox(t.colors.dim.copy(alpha = 0.5f), t.colors.surface, 2)
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) { PText(bubble, 15.sp, t.colors.text) }
+                .wrapContentWidth(unbounded = true),
+        )
     }
     Canvas(Modifier.matchParentSize()) {
         val px = pixel.dp.toPx()
@@ -267,6 +284,38 @@ private fun DrawScope.drawZ(x: Float, y: Float, px: Float, color: Color) {
     Z_GLYPH.forEachIndexed { r, row ->
         row.forEachIndexed { c, ch ->
             if (ch == 'K') drawRect(color, Offset(x + c * px, y + r * px), Size(px + 0.5f, px + 0.5f))
+        }
+    }
+}
+
+/** Облачко реплики в пиксельном стиле: ступенчатая рамка и хвостик-указатель вправо, к маскоту. */
+@Composable
+private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
+    val t = LocalDen.current
+    val border = t.colors.text.copy(alpha = 0.92f)
+    val fill = t.colors.surface
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .pixelBox(border, fill, 3)
+                .padding(horizontal = 16.dp, vertical = 9.dp)
+        ) { PText(text, 15.sp, t.colors.text) }
+        // Хвостик: заходит на рамку на 1 «пиксель», чтобы шов был открыт.
+        Canvas(Modifier.offset(x = (-3).dp).size(9.dp, 15.dp)) {
+            val u = size.width / 3
+            val px = listOf(
+                "B..",
+                "FB.",
+                "FFB",
+                "FB.",
+                "B..",
+            )
+            px.forEachIndexed { r, row ->
+                row.forEachIndexed { c, ch ->
+                    val col = when (ch) { 'B' -> border; 'F' -> fill; else -> null } ?: return@forEachIndexed
+                    drawRect(col, Offset(c * u, r * u), Size(u + 0.5f, u + 0.5f))
+                }
+            }
         }
     }
 }
