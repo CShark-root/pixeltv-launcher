@@ -45,7 +45,7 @@ fun keyName(code: Int): String = when (code) {
     KeyEvent.KEYCODE_HOME -> "Домой"
     KeyEvent.KEYCODE_BACK -> "Назад"
     KeyEvent.KEYCODE_VOLUME_UP -> "Громкость +"
-    KeyEvent.KEYCODE_VOLUME_DOWN -> "Громкость −"
+    KeyEvent.KEYCODE_VOLUME_DOWN -> "Громкость -"
     KeyEvent.KEYCODE_VOLUME_MUTE -> "Без звука"
     KeyEvent.KEYCODE_TV_INPUT -> "Источник"
     KeyEvent.KEYCODE_SETTINGS -> "Настройки"
@@ -126,10 +126,10 @@ fun ScenarioListScreen(cfg: LauncherConfig, onEdit: (String) -> Unit) {
     Box(Modifier.fillMaxSize().background(t.colors.bg), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.widthIn(max = 980.dp).fillMaxSize(), contentPadding = PaddingValues(40.dp, 32.dp)) {
             item { PText("Сценарии", 40.sp) }
-            item { PText("OK — изменить · ◀ ▶ — вкл/выкл · удержание OK — запустить, копия, удалить", 14.sp, t.colors.dim, Modifier.padding(bottom = 12.dp)) }
+            item { PText("OK — изменить · < > — вкл/выкл · удержание OK — запустить, копия, удалить", 14.sp, t.colors.dim, Modifier.padding(bottom = 12.dp)) }
             if (DenAccessibilityService.instance == null) {
                 item {
-                    PText("⚠ Служба PixelDen выключена: кнопки пульта и «нажать по тексту» не будут работать.", 15.sp, t.colors.accent, Modifier.padding(bottom = 10.dp), maxLines = 2)
+                    PText("! Служба PixelDen выключена: кнопки пульта и «нажать по тексту» не будут работать.", 15.sp, t.colors.accent, Modifier.padding(bottom = 10.dp), maxLines = 2)
                 }
             }
             item {
@@ -154,7 +154,7 @@ fun ScenarioListScreen(cfg: LauncherConfig, onEdit: (String) -> Unit) {
 
         menuFor?.let { s ->
             Overlay(s.name, onDismiss = { menuFor = null }) {
-                item { SettingRow("▶ Запустить сейчас", focusRequester = rememberAutoFocus()) { app.engine.run(s); menuFor = null } }
+                item { SettingRow("> Запустить сейчас", focusRequester = rememberAutoFocus()) { app.engine.run(s); menuFor = null } }
                 item {
                     SettingRow("Сделать копию") {
                         app.store.update { it.copy(scenarios = it.scenarios + s.copy(id = Templates.newId(), name = s.name + " (копия)", enabled = false)) }
@@ -267,7 +267,7 @@ fun ScenarioEditorScreen(cfg: LauncherConfig, id: String, onClose: () -> Unit) {
                             DAYS.forEachIndexed { i, d ->
                                 val day = i + 1
                                 val on = day in tr.days
-                                PButton(if (on) "■ $d" else "□ $d", size = 15.sp) {
+                                PButton(if (on) "[x] $d" else "[ ] $d", size = 15.sp) {
                                     updTrigger(tr.copy(days = if (on) tr.days - day else (tr.days + day).sorted()))
                                 }
                             }
@@ -283,7 +283,7 @@ fun ScenarioEditorScreen(cfg: LauncherConfig, id: String, onClose: () -> Unit) {
             itemsIndexed(s.actions) { i, a ->
                 SettingRow(
                     "${i + 1}. ${actionText(a, cfg)}",
-                    hint = "OK — изменить · ◀ ▶ — порядок · удержание OK — меню",
+                    hint = "OK — изменить · < > — порядок · удержание OK — меню",
                     onLeft = { updActions { l -> if (i > 0) l.add(i - 1, l.removeAt(i)) } },
                     onRight = { updActions { l -> if (i < l.lastIndex) l.add(i + 1, l.removeAt(i)) } },
                     onLongClick = { dialog = EditorDialog.ActionMenu(i) },
@@ -293,7 +293,7 @@ fun ScenarioEditorScreen(cfg: LauncherConfig, id: String, onClose: () -> Unit) {
             item { SettingRow("+ Добавить действие") { dialog = EditorDialog.AddAction } }
 
             item { SectionTitle("") }
-            item { SettingRow("▶ Запустить сейчас") { app.engine.run(s) } }
+            item { SettingRow("> Запустить сейчас") { app.engine.run(s) } }
             item {
                 SettingRow("Удалить сценарий") {
                     app.store.update { it.copy(scenarios = it.scenarios.filter { x -> x.id != id }) }
@@ -378,7 +378,7 @@ private fun ActionEditor(a: Action, cfg: LauncherConfig, onDismiss: () -> Unit, 
             val apps by app.apps.apps.collectAsState()
             Overlay("Какое приложение", onDismiss) {
                 itemsIndexed(apps.filter { it.pkg !in cfg.hidden }, key = { _, e -> e.pkg }) { i, e ->
-                    SettingRow(cfg.renamed[e.pkg] ?: e.label, if (e.pkg == a.pkg) "✓" else null,
+                    SettingRow(cfg.renamed[e.pkg] ?: e.label, if (e.pkg == a.pkg) "•" else null,
                         focusRequester = if (i == 0) rememberAutoFocus() else null) {
                         onChange(a.copy(pkg = e.pkg)); onDismiss()
                     }
@@ -413,8 +413,8 @@ private fun ActionEditor(a: Action, cfg: LauncherConfig, onDismiss: () -> Unit, 
             }
         }
         is Action.Mute -> Overlay("Звук", onDismiss) {
-            item { SettingRow("Выключить звук", if (a.on) "✓" else null, focusRequester = rememberAutoFocus()) { onChange(Action.Mute(true)); onDismiss() } }
-            item { SettingRow("Включить звук", if (!a.on) "✓" else null) { onChange(Action.Mute(false)); onDismiss() } }
+            item { SettingRow("Выключить звук", if (a.on) "•" else null, focusRequester = rememberAutoFocus()) { onChange(Action.Mute(true)); onDismiss() } }
+            item { SettingRow("Включить звук", if (!a.on) "•" else null) { onChange(Action.Mute(false)); onDismiss() } }
         }
         is Action.Wait -> Overlay("Пауза", onDismiss) {
             item {
@@ -426,7 +426,7 @@ private fun ActionEditor(a: Action, cfg: LauncherConfig, onDismiss: () -> Unit, 
         }
         is Action.OpenSettings -> Overlay("Какая страница", onDismiss) {
             itemsIndexed(SETTINGS_PAGES) { i, (label, action) ->
-                SettingRow(label, if (action == a.intentAction) "✓" else null, focusRequester = if (i == 0) rememberAutoFocus() else null) {
+                SettingRow(label, if (action == a.intentAction) "•" else null, focusRequester = if (i == 0) rememberAutoFocus() else null) {
                     onChange(a.copy(intentAction = action)); onDismiss()
                 }
             }

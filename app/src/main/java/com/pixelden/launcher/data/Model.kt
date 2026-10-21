@@ -14,7 +14,7 @@ data class LauncherConfig(
     val mascotScale: Int = 6,
 
     // Внешний вид
-    val font: String = "pixelify",
+    val font: String = "tiny5",
     val accent: Long = 0xFFD97757,
     val background: Long = 0xFF14121A,
     val wallpaperPath: String? = null,
@@ -50,7 +50,31 @@ data class LauncherConfig(
     // Сценарии
     val scenarios: List<Scenario> = emptyList(),
     val templatesOffered: Boolean = false,
+    /** Версия разовых правок по умолчанию (скрытие мусора и т. п.), см. [Defaults]. */
+    val defaultsVersion: Int = 0,
 )
+
+object Defaults {
+    const val VERSION = 2
+
+    /** Пустышки обязательной предустановки и системные пакеты, которым не место на главном экране. */
+    val JUNK = listOf(
+        "ru.ntv.client.tv", "ru.ok.androidtv", "ru.tv1.android.tv", "com.vgtrk.androidtv",
+        "com.ctcmediagroup.videomore", "ru.ivi.client", "ru.rt.video.app.tv", "tv.okko.androidtv",
+        "ru.start.androidmobile", "com.xiaomi.tvhome.fakepremier",
+        "com.mstar.android.tv.disclaimercustomization", "com.mediatek.tv.service",
+        "com.mediatek.wwtv.webview", "com.mediatek.wwtv.tvcenter", "com.android.deskclock",
+        "com.xiaomi.mitv.tvmanager",
+    )
+
+    fun apply(cfg: LauncherConfig): LauncherConfig {
+        var c = cfg
+        if (c.defaultsVersion < 1) c = c.copy(hidden = (c.hidden + JUNK).distinct())
+        // v2: Pixelify Sans не понравился — переводим на Tiny5.
+        if (c.defaultsVersion < 2 && c.font == "pixelify") c = c.copy(font = "tiny5")
+        return c.copy(defaultsVersion = VERSION)
+    }
+}
 
 @Serializable
 data class Category(val id: String, val name: String, val apps: List<String> = emptyList())

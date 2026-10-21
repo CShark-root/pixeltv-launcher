@@ -57,7 +57,7 @@ fun SectionTitle(text: String) {
 }
 
 /**
- * Строка настройки: ◀ ▶ меняют значение, OK — то же, что ▶ (или [onClick], если задан).
+ * Строка настройки: < > меняют значение, OK — то же, что > (или [onClick], если задан).
  */
 @Composable
 fun SettingRow(
@@ -105,7 +105,7 @@ fun SettingRow(
         if (value != null) {
             val arrows = onLeft != null || onRight != null
             PText(
-                if (arrows && focused) "◀ $value ▶" else value,
+                if (arrows && focused) "< $value >" else value,
                 18.sp,
                 if (focused) t.colors.accent else t.colors.dim,
                 Modifier.padding(start = 16.dp),

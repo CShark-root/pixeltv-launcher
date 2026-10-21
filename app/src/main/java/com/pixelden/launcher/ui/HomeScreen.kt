@@ -92,13 +92,22 @@ fun HomeScreen(
         app.apps.launchIntent(entry.pkg)?.let { runCatching { context.startActivity(it) } }
     }
 
-    // Нажатие HOME на главном экране — вернуть фокус к началу.
-    LaunchedEffect(homeTick) {
-        if (homeTick > 0) restoreKey = (favorites.firstOrNull() ?: visible.firstOrNull())?.let { "fav:${it.pkg}".takeIf { favorites.isNotEmpty() } ?: "all:${it.pkg}" }
-    }
-    LaunchedEffect(visible.isNotEmpty()) {
-        if (visible.isNotEmpty() && lastFocusKey == null) {
-            restoreKey = favorites.firstOrNull()?.let { "fav:${it.pkg}" } ?: "all:${visible.first().pkg}"
+    val listState = rememberLazyListState()
+    var nonce by remember { mutableStateOf(0) }
+    // Ключ фокуса + счётчик: повторный запрос на ту же карточку тоже срабатывает.
+    fun focusOn(key: String?) { if (key != null) restoreKey = "$key#${nonce++}" }
+    fun startKey() = favorites.firstOrNull()?.let { "fav:${it.pkg}" } ?: visible.firstOrNull()?.let { "all:${it.pkg}" }
+
+    // Старт и повторное нажатие HOME: фокус на первую карточку, экран — к шапке с часами и маскотом.
+    LaunchedEffect(homeTick, visible.isNotEmpty()) {
+        if (visible.isEmpty()) return@LaunchedEffect
+        if (homeTick > 0 || lastFocusKey == null) {
+            focusOn(startKey())
+            // Карточка берёт фокус и сама прокручивает список к себе — возвращаем шапку следом.
+            repeat(3) {
+                delay(250)
+                listState.scrollToItem(0)
+            }
         }
     }
 
@@ -107,6 +116,7 @@ fun HomeScreen(
 
         LazyColumn(
             Modifier.fillMaxSize(),
+            state = listState,
             contentPadding = PaddingValues(start = 56.dp, end = 56.dp, top = 36.dp, bottom = 48.dp),
         ) {
             item {
@@ -115,7 +125,7 @@ fun HomeScreen(
             if (manual.isNotEmpty()) {
                 item {
                     Row(Modifier.padding(top = 4.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        manual.take(6).forEach { s -> PButton("▶ ${s.name}", size = 14.sp) { app.engine.run(s) } }
+                        manual.take(6).forEach { s -> PButton("> ${s.name}", size = 14.sp) { app.engine.run(s) } }
                     }
                 }
             }
@@ -163,7 +173,7 @@ fun HomeScreen(
             AppMenu(
                 entry = entry,
                 cfg = cfg,
-                onDismiss = { menuFor = null; restoreKey = lastFocusKey },
+                onDismiss = { menuFor = null; focusOn(lastFocusKey) },
                 onRename = { renameFor = entry; menuFor = null },
             )
         }
@@ -171,13 +181,13 @@ fun HomeScreen(
             TextEditOverlay(
                 "Название для ${entry.label}",
                 cfg.renamed[entry.pkg] ?: entry.label,
-                onDismiss = { renameFor = null; restoreKey = lastFocusKey },
+                onDismiss = { renameFor = null; focusOn(lastFocusKey) },
             ) { name ->
                 app.store.update {
                     it.copy(renamed = if (name.isBlank() || name == entry.label) it.renamed - entry.pkg else it.renamed + (entry.pkg to name))
                 }
                 renameFor = null
-                restoreKey = lastFocusKey
+                focusOn(lastFocusKey)
             }
         }
     }
@@ -255,12 +265,13 @@ private fun Header(
             }
         }
         if (cfg.mascotEnabled) {
-            Column(horizontalAlignment = Alignment.End) {
-                val text = bubble ?: if (idle) "z z z" else focusedLabel
+            // Реплика — слева от маскота, на уровне головы, чтобы не упираться в верх экрана.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val text = bubble ?: if (idle) null else focusedLabel
                 if (text != null) {
                     Box(
                         Modifier
-                            .padding(bottom = 6.dp)
+                            .padding(end = 10.dp, bottom = (cfg.mascotScale * 6).dp)
                             .pixelBox(t.colors.dim.copy(alpha = 0.5f), t.colors.surface, 2)
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) { PText(text, 15.sp, t.colors.text) }
@@ -271,6 +282,7 @@ private fun Header(
                     mood = if (idle) MascotMood.SLEEP else MascotMood.IDLE,
                     animate = t.animations,
                     jumpKey = jump,
+                    talking = bubble != null,
                 )
             }
         }
@@ -354,7 +366,7 @@ private fun AppCard(
     val repo = PixelDenApp.instance.apps
     var focused by remember { mutableStateOf(false) }
     val fr = remember { FocusRequester() }
-    LaunchedEffect(restoreKey) { if (restoreKey == key) fr.tryFocus() }
+    LaunchedEffect(restoreKey) { if (restoreKey?.substringBefore('#') == key) fr.tryFocus() }
 
     val banner by produceState<ImageBitmap?>(null, e.pkg, cfg.preferBanners) {
         value = if (cfg.preferBanners) repo.banner(e.pkg) else null
@@ -410,7 +422,7 @@ private fun InputRow(inputs: List<InputEntry>, onClick: (InputEntry) -> Unit) {
                     .tvClickable(onFocus = { focused = it }) { onClick(i) }
                     .pixelBox(if (focused) t.colors.accent else Color.Transparent, if (focused) t.colors.surfaceHi else t.colors.surface, t.border)
                     .padding(horizontal = 22.dp, vertical = 14.dp)
-            ) { PText("⏵ ${i.label}", 17.sp, if (focused) t.colors.text else t.colors.dim) }
+            ) { PText("${i.label}", 17.sp, if (focused) t.colors.text else t.colors.dim) }
         }
     }
     Spacer(Modifier.height(8.dp))
@@ -440,7 +452,7 @@ private fun AppMenu(entry: AppEntry, cfg: LauncherConfig, onDismiss: () -> Unit,
             }
         }
         if (isFav) {
-            item { SettingRow("Сдвинуть в избранном", value = "◀ ▶", onLeft = { moveFav(-1) }, onRight = { moveFav(1) }) }
+            item { SettingRow("Сдвинуть в избранном", value = "< >", onLeft = { moveFav(-1) }, onRight = { moveFav(1) }) }
         }
         items(cfg.categories, key = { it.id }) { cat ->
             val inCat = entry.pkg in cat.apps

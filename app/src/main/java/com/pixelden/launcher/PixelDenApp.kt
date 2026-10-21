@@ -3,6 +3,7 @@ package com.pixelden.launcher
 import android.app.Application
 import com.pixelden.launcher.apps.AppRepository
 import com.pixelden.launcher.data.ConfigStore
+import com.pixelden.launcher.data.Defaults
 import com.pixelden.launcher.scenario.ScenarioEngine
 import com.pixelden.launcher.scenario.Scheduler
 import com.pixelden.launcher.scenario.Templates
@@ -31,6 +32,7 @@ class PixelDenApp : Application() {
         if (!store.current.templatesOffered) {
             store.update { it.copy(scenarios = it.scenarios + Templates.initial(), templatesOffered = true) }
         }
+        store.update(Defaults::apply)
         Scheduler.scheduleAll(this, store.current)
     }
 

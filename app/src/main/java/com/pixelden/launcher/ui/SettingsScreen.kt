@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -23,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,6 +36,9 @@ import com.pixelden.launcher.scenario.DenAccessibilityService
 import com.pixelden.launcher.scenario.Templates
 import java.io.File
 
+/** Какие разделы настроек раскрыты — живёт, пока жив процесс лаунчера. */
+private var openSections by mutableStateOf(setOf<String>())
+
 @Composable
 fun SettingsScreen(cfg: LauncherConfig) {
     val app = PixelDenApp.instance
@@ -43,10 +48,31 @@ fun SettingsScreen(cfg: LauncherConfig) {
     val apps by app.apps.apps.collectAsState()
     val first = rememberAutoFocus()
     var renameCat by remember { mutableStateOf<Category?>(null) }
+    val wallpapers = remember { listWallpapers() }
 
     fun set(f: (LauncherConfig) -> LauncherConfig) = store.update(f)
 
-    val wallpapers = remember { listWallpapers() }
+    /** Выпадающий раздел: заголовок всегда виден, содержимое — только когда раскрыт. */
+    fun LazyListScope.fold(
+        key: String,
+        title: String,
+        summary: String? = null,
+        focus: FocusRequester? = null,
+        content: LazyListScope.() -> Unit,
+    ) {
+        val open = key in openSections
+        item(key = "fold-$key") {
+            SettingRow(
+                (if (open) "v  " else ">  ") + title,
+                value = summary,
+                focusRequester = focus,
+                onLeft = { openSections = openSections - key },
+                onRight = { openSections = openSections + key },
+                onClick = { openSections = if (open) openSections - key else openSections + key },
+            )
+        }
+        if (open) content()
+    }
 
     Box(Modifier.fillMaxSize().background(t.colors.bg), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
@@ -54,168 +80,172 @@ fun SettingsScreen(cfg: LauncherConfig) {
             contentPadding = PaddingValues(horizontal = 40.dp, vertical = 32.dp),
         ) {
             item { PText("Настройки", 40.sp, t.colors.text, Modifier.padding(bottom = 4.dp)) }
-            item { PText("◀ ▶ меняют значение · OK — выбрать · BACK — назад", 14.sp, t.colors.dim) }
+            item { PText("OK — раскрыть раздел · < > меняют значение · BACK — назад", 14.sp, t.colors.dim, Modifier.padding(bottom = 14.dp)) }
 
-            // ---- Маскот
-            item { SectionTitle("Маскот") }
-            item {
-                val m = mascotById(cfg.mascot)
-                SettingRow(
-                    "Маскот", m.name, hint = m.note, focusRequester = first,
-                    onLeft = { set { it.copy(mascot = MASCOTS.map { m -> m.id }.cycle(it.mascot, -1)) } },
-                    onRight = { set { it.copy(mascot = MASCOTS.map { m -> m.id }.cycle(it.mascot, 1)) } },
-                    trailing = { MascotSprite(m, 3, MascotMood.IDLE, t.animations, modifier = Modifier.padding(start = 12.dp)) },
-                )
-            }
-            item { ToggleRow("Показывать маскота", cfg.mascotEnabled) { v -> set { it.copy(mascotEnabled = v) } } }
-            item { ToggleRow("Маскот разговаривает", cfg.mascotSpeaks, "Приветствие, название приложения в фокусе, итоги сценариев") { v -> set { it.copy(mascotSpeaks = v) } } }
-            item {
-                SettingRow("Засыпает через", "${cfg.mascotSleepMinutes} мин",
-                    onLeft = { set { it.copy(mascotSleepMinutes = it.mascotSleepMinutes.stepIn(-1, 1..60)) } },
-                    onRight = { set { it.copy(mascotSleepMinutes = it.mascotSleepMinutes.stepIn(1, 1..60)) } })
-            }
-            item {
-                SettingRow("Размер маскота", "${cfg.mascotScale}",
-                    onLeft = { set { it.copy(mascotScale = it.mascotScale.stepIn(-1, 3..12)) } },
-                    onRight = { set { it.copy(mascotScale = it.mascotScale.stepIn(1, 3..12)) } })
-            }
-
-            // ---- Внешний вид
-            item { SectionTitle("Внешний вид") }
-            item {
-                val ids = FONTS.map { it.first }
-                SettingRow("Шрифт", (FONTS.firstOrNull { it.first == cfg.font } ?: FONTS.first()).second,
-                    onLeft = { set { it.copy(font = ids.cycle(it.font, -1)) } },
-                    onRight = { set { it.copy(font = ids.cycle(it.font, 1)) } })
-            }
-            item {
-                SettingRow("Акцентный цвет", "${ACCENTS.indexOf(cfg.accent) + 1}/${ACCENTS.size}",
-                    onLeft = { set { it.copy(accent = ACCENTS.cycle(it.accent, -1)) } },
-                    onRight = { set { it.copy(accent = ACCENTS.cycle(it.accent, 1)) } },
-                    trailing = { ColorSwatch(cfg.accent) })
-            }
-            item {
-                SettingRow("Цвет фона", "${BACKGROUNDS.indexOf(cfg.background) + 1}/${BACKGROUNDS.size}",
-                    onLeft = { set { it.copy(background = BACKGROUNDS.cycle(it.background, -1)) } },
-                    onRight = { set { it.copy(background = BACKGROUNDS.cycle(it.background, 1)) } },
-                    trailing = { ColorSwatch(cfg.background) })
-            }
-            item {
-                val options = listOf<String?>(null) + wallpapers
-                SettingRow("Обои", cfg.wallpaperPath?.let { File(it).nameWithoutExtension.take(28) } ?: "нет",
-                    hint = "Картинки из Pictures/Wallpapers и Pictures",
-                    onLeft = { set { it.copy(wallpaperPath = options.cycle(it.wallpaperPath, -1)) } },
-                    onRight = { set { it.copy(wallpaperPath = options.cycle(it.wallpaperPath, 1)) } })
-            }
-            item {
-                SettingRow("Затемнение обоев", "${cfg.wallpaperDim}%",
-                    onLeft = { set { it.copy(wallpaperDim = it.wallpaperDim.stepIn(-10, 0..90)) } },
-                    onRight = { set { it.copy(wallpaperDim = it.wallpaperDim.stepIn(10, 0..90)) } })
-            }
-            item { ToggleRow("Анимации", cfg.animations) { v -> set { it.copy(animations = v) } } }
-            item {
-                SettingRow("Увеличение в фокусе", "${cfg.focusScale}%",
-                    onLeft = { set { it.copy(focusScale = it.focusScale.stepIn(-1, 0..15)) } },
-                    onRight = { set { it.copy(focusScale = it.focusScale.stepIn(1, 0..15)) } })
-            }
-            item {
-                SettingRow("Толщина пиксельной рамки", "${cfg.pixelBorder}",
-                    onLeft = { set { it.copy(pixelBorder = it.pixelBorder.stepIn(-1, 1..8)) } },
-                    onRight = { set { it.copy(pixelBorder = it.pixelBorder.stepIn(1, 1..8)) } })
-            }
-
-            // ---- Сетка
-            item { SectionTitle("Сетка и карточки") }
-            item {
-                SettingRow("Колонок во «Все приложения»", "${cfg.columns}",
-                    onLeft = { set { it.copy(columns = it.columns.stepIn(-1, 3..10)) } },
-                    onRight = { set { it.copy(columns = it.columns.stepIn(1, 3..10)) } })
-            }
-            item {
-                SettingRow("Размер карточек в рядах", "${cfg.cardSize}%",
-                    onLeft = { set { it.copy(cardSize = it.cardSize.stepIn(-10, 60..160)) } },
-                    onRight = { set { it.copy(cardSize = it.cardSize.stepIn(10, 60..160)) } })
-            }
-            item { ToggleRow("Подписи под карточками", cfg.showLabels) { v -> set { it.copy(showLabels = v) } } }
-            item { ToggleRow("Баннеры приложений", cfg.preferBanners, "Выкл — везде иконки") { v -> set { it.copy(preferBanners = v) } } }
-
-            // ---- Шапка
-            item { SectionTitle("Часы и шапка") }
-            item { ToggleRow("24-часовой формат", cfg.clock24h) { v -> set { it.copy(clock24h = v) } } }
-            item { ToggleRow("Секунды", cfg.showSeconds) { v -> set { it.copy(showSeconds = v) } } }
-            item { ToggleRow("Дата", cfg.showDate) { v -> set { it.copy(showDate = v) } } }
-            item { ToggleRow("Приветствие при запуске", cfg.greeting) { v -> set { it.copy(greeting = v) } } }
-
-            // ---- Ряды
-            item { SectionTitle("Ряды главного экрана") }
-            item { ToggleRow("Избранное", cfg.showFavorites) { v -> set { it.copy(showFavorites = v) } } }
-            item { ToggleRow("Входы (HDMI, ТВ)", cfg.showInputs) { v -> set { it.copy(showInputs = v) } } }
-            item { ToggleRow("Категории", cfg.showCategories) { v -> set { it.copy(showCategories = v) } } }
-            item { ToggleRow("Все приложения", cfg.showAllApps) { v -> set { it.copy(showAllApps = v) } } }
-
-            // ---- Категории
-            item { SectionTitle("Категории") }
-            items(cfg.categories, key = { "c" + it.id }) { cat ->
-                SettingRow(
-                    cat.name, "${cat.apps.size} прил.",
-                    hint = "OK — переименовать · ◀ ▶ — порядок · удержание OK — удалить",
-                    onLeft = { set { c -> c.copy(categories = c.categories.move(cat, -1)) } },
-                    onRight = { set { c -> c.copy(categories = c.categories.move(cat, 1)) } },
-                    onLongClick = { set { c -> c.copy(categories = c.categories - cat) } },
-                    onClick = { renameCat = cat },
-                )
-            }
-            item {
-                SettingRow("+ Новая категория") {
-                    set { it.copy(categories = it.categories + Category(Templates.newId(), "Категория ${it.categories.size + 1}")) }
+            fold("mascot", "Маскот", mascotById(cfg.mascot).name, focus = first) {
+                item {
+                    val m = mascotById(cfg.mascot)
+                    SettingRow(
+                        "Кто живёт в лаунчере", m.name, hint = m.note,
+                        onLeft = { set { it.copy(mascot = MASCOTS.map { m -> m.id }.cycle(it.mascot, -1)) } },
+                        onRight = { set { it.copy(mascot = MASCOTS.map { m -> m.id }.cycle(it.mascot, 1)) } },
+                        trailing = { MascotSprite(m, 3, MascotMood.IDLE, t.animations, modifier = Modifier.padding(start = 12.dp)) },
+                    )
+                }
+                item { ToggleRow("Показывать маскота", cfg.mascotEnabled) { v -> set { it.copy(mascotEnabled = v) } } }
+                item { ToggleRow("Маскот разговаривает", cfg.mascotSpeaks, "Приветствие, название приложения в фокусе, итоги сценариев") { v -> set { it.copy(mascotSpeaks = v) } } }
+                item {
+                    SettingRow("Засыпает через", "${cfg.mascotSleepMinutes} мин",
+                        onLeft = { set { it.copy(mascotSleepMinutes = it.mascotSleepMinutes.stepIn(-1, 1..60)) } },
+                        onRight = { set { it.copy(mascotSleepMinutes = it.mascotSleepMinutes.stepIn(1, 1..60)) } })
+                }
+                item {
+                    SettingRow("Размер маскота", "${cfg.mascotScale}",
+                        onLeft = { set { it.copy(mascotScale = it.mascotScale.stepIn(-1, 2..10)) } },
+                        onRight = { set { it.copy(mascotScale = it.mascotScale.stepIn(1, 2..10)) } })
                 }
             }
 
-            // ---- Скрытые
-            item { SectionTitle("Скрытые приложения") }
-            items(apps, key = { "h" + it.pkg }) { e ->
-                val hidden = e.pkg in cfg.hidden
-                ToggleRow(e.label, !hidden, if (hidden) "скрыто" else null) { show ->
-                    set { it.copy(hidden = if (show) it.hidden - e.pkg else it.hidden + e.pkg) }
+            fold("look", "Внешний вид", (FONTS.firstOrNull { it.first == cfg.font } ?: FONTS.first()).second) {
+                item {
+                    val ids = FONTS.map { it.first }
+                    SettingRow("Шрифт", (FONTS.firstOrNull { it.first == cfg.font } ?: FONTS.first()).second,
+                        onLeft = { set { it.copy(font = ids.cycle(it.font, -1)) } },
+                        onRight = { set { it.copy(font = ids.cycle(it.font, 1)) } })
+                }
+                item {
+                    SettingRow("Акцентный цвет", "${ACCENTS.indexOf(cfg.accent) + 1}/${ACCENTS.size}",
+                        onLeft = { set { it.copy(accent = ACCENTS.cycle(it.accent, -1)) } },
+                        onRight = { set { it.copy(accent = ACCENTS.cycle(it.accent, 1)) } },
+                        trailing = { ColorSwatch(cfg.accent) })
+                }
+                item {
+                    SettingRow("Цвет фона", "${BACKGROUNDS.indexOf(cfg.background) + 1}/${BACKGROUNDS.size}",
+                        onLeft = { set { it.copy(background = BACKGROUNDS.cycle(it.background, -1)) } },
+                        onRight = { set { it.copy(background = BACKGROUNDS.cycle(it.background, 1)) } },
+                        trailing = { ColorSwatch(cfg.background) })
+                }
+                item {
+                    val options = listOf<String?>(null) + wallpapers
+                    SettingRow("Обои", cfg.wallpaperPath?.let { File(it).nameWithoutExtension.take(28) } ?: "нет",
+                        hint = "Картинки из Pictures/Wallpapers и Pictures",
+                        onLeft = { set { it.copy(wallpaperPath = options.cycle(it.wallpaperPath, -1)) } },
+                        onRight = { set { it.copy(wallpaperPath = options.cycle(it.wallpaperPath, 1)) } })
+                }
+                item {
+                    SettingRow("Затемнение обоев", "${cfg.wallpaperDim}%",
+                        onLeft = { set { it.copy(wallpaperDim = it.wallpaperDim.stepIn(-10, 0..90)) } },
+                        onRight = { set { it.copy(wallpaperDim = it.wallpaperDim.stepIn(10, 0..90)) } })
+                }
+                item { ToggleRow("Анимации", cfg.animations) { v -> set { it.copy(animations = v) } } }
+                item {
+                    SettingRow("Увеличение в фокусе", "${cfg.focusScale}%",
+                        onLeft = { set { it.copy(focusScale = it.focusScale.stepIn(-1, 0..15)) } },
+                        onRight = { set { it.copy(focusScale = it.focusScale.stepIn(1, 0..15)) } })
+                }
+                item {
+                    SettingRow("Толщина пиксельной рамки", "${cfg.pixelBorder}",
+                        onLeft = { set { it.copy(pixelBorder = it.pixelBorder.stepIn(-1, 1..8)) } },
+                        onRight = { set { it.copy(pixelBorder = it.pixelBorder.stepIn(1, 1..8)) } })
                 }
             }
 
-            // ---- Права
-            item { SectionTitle("Права и службы") }
-            item {
-                val on = DenAccessibilityService.instance != null
-                SettingRow(
-                    "Служба кнопок и сценариев", if (on) "работает" else "выключена",
-                    hint = "Нужна для кнопок пульта, ClickText, сна, Home/Back. OK — открыть настройки",
-                ) {
-                    runCatching { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            fold("grid", "Сетка и карточки", "${cfg.columns} колонок") {
+                item {
+                    SettingRow("Колонок во «Все приложения»", "${cfg.columns}",
+                        onLeft = { set { it.copy(columns = it.columns.stepIn(-1, 3..10)) } },
+                        onRight = { set { it.copy(columns = it.columns.stepIn(1, 3..10)) } })
                 }
-            }
-            item {
-                val ok = context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
-                SettingRow("Системные настройки (WRITE_SECURE_SETTINGS)", if (ok) "есть" else "нет",
-                    hint = "adb shell pm grant com.pixelden.launcher android.permission.WRITE_SECURE_SETTINGS")
-            }
-            item {
-                SettingRow("Яркость (WRITE_SETTINGS)", if (Settings.System.canWrite(context)) "есть" else "нет",
-                    hint = "adb shell appops set com.pixelden.launcher WRITE_SETTINGS allow")
+                item {
+                    SettingRow("Размер карточек в рядах", "${cfg.cardSize}%",
+                        onLeft = { set { it.copy(cardSize = it.cardSize.stepIn(-10, 60..160)) } },
+                        onRight = { set { it.copy(cardSize = it.cardSize.stepIn(10, 60..160)) } })
+                }
+                item { ToggleRow("Подписи под карточками", cfg.showLabels) { v -> set { it.copy(showLabels = v) } } }
+                item { ToggleRow("Баннеры приложений", cfg.preferBanners, "Выкл — везде иконки") { v -> set { it.copy(preferBanners = v) } } }
             }
 
-            // ---- Резервная копия
-            item { SectionTitle("Резервная копия") }
-            item {
-                SettingRow("Сохранить настройки и сценарии", hint = store.exportFile().absolutePath) {
-                    toast(context, store.exportBackup().fold({ "Сохранено: ${it.name}" }, { "Ошибка: ${it.message}" }))
-                }
+            fold("clock", "Часы и шапка") {
+                item { ToggleRow("24-часовой формат", cfg.clock24h) { v -> set { it.copy(clock24h = v) } } }
+                item { ToggleRow("Секунды", cfg.showSeconds) { v -> set { it.copy(showSeconds = v) } } }
+                item { ToggleRow("Дата", cfg.showDate) { v -> set { it.copy(showDate = v) } } }
+                item { ToggleRow("Приветствие при запуске", cfg.greeting) { v -> set { it.copy(greeting = v) } } }
             }
-            item {
-                SettingRow("Загрузить из файла", hint = "Заменит текущие настройки содержимым pixelden-backup.json") {
-                    toast(context, store.importBackup().fold({ "Загружено" }, { "Ошибка: ${it.message}" }))
+
+            fold("rows", "Ряды главного экрана") {
+                item { ToggleRow("Избранное", cfg.showFavorites) { v -> set { it.copy(showFavorites = v) } } }
+                item { ToggleRow("Входы (HDMI, ТВ)", cfg.showInputs) { v -> set { it.copy(showInputs = v) } } }
+                item { ToggleRow("Категории", cfg.showCategories) { v -> set { it.copy(showCategories = v) } } }
+                item { ToggleRow("Все приложения", cfg.showAllApps) { v -> set { it.copy(showAllApps = v) } } }
+            }
+
+            fold("cats", "Категории", "${cfg.categories.size}") {
+                items(cfg.categories, key = { "c" + it.id }) { cat ->
+                    SettingRow(
+                        cat.name, "${cat.apps.size} прил.",
+                        hint = "OK — переименовать · < > — порядок · удержание OK — удалить",
+                        onLeft = { set { c -> c.copy(categories = c.categories.move(cat, -1)) } },
+                        onRight = { set { c -> c.copy(categories = c.categories.move(cat, 1)) } },
+                        onLongClick = { set { c -> c.copy(categories = c.categories - cat) } },
+                        onClick = { renameCat = cat },
+                    )
+                }
+                item {
+                    SettingRow("+ Новая категория") {
+                        set { it.copy(categories = it.categories + Category(Templates.newId(), "Категория ${it.categories.size + 1}")) }
+                    }
                 }
             }
 
-            item { SectionTitle("О программе") }
-            item { SettingRow("PixelDen ${BuildConfig.VERSION_NAME}", hint = "Шрифты: Pixelify Sans, Tiny5, Press Start 2P (SIL OFL)") }
+            fold("hidden", "Скрытые приложения", "скрыто ${apps.count { it.pkg in cfg.hidden }} из ${apps.size}") {
+                items(apps, key = { "h" + it.pkg }) { e ->
+                    val hidden = e.pkg in cfg.hidden
+                    SettingRow(
+                        cfg.renamed[e.pkg] ?: e.label,
+                        if (hidden) "скрыто" else "видно",
+                        onLeft = { set { it.copy(hidden = if (hidden) it.hidden - e.pkg else it.hidden + e.pkg) } },
+                        onRight = { set { it.copy(hidden = if (hidden) it.hidden - e.pkg else it.hidden + e.pkg) } },
+                    )
+                }
+            }
+
+            fold("perm", "Права и службы", if (DenAccessibilityService.instance != null) "служба работает" else "служба выключена") {
+                item {
+                    val on = DenAccessibilityService.instance != null
+                    SettingRow(
+                        "Служба кнопок и сценариев", if (on) "работает" else "выключена",
+                        hint = "Нужна для кнопок пульта, «нажать по тексту», сна, Домой/Назад. OK — открыть настройки",
+                    ) {
+                        runCatching { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    }
+                }
+                item {
+                    val ok = context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED
+                    SettingRow("Системные настройки (WRITE_SECURE_SETTINGS)", if (ok) "есть" else "нет",
+                        hint = "adb shell pm grant com.pixelden.launcher android.permission.WRITE_SECURE_SETTINGS")
+                }
+                item {
+                    SettingRow("Яркость (WRITE_SETTINGS)", if (Settings.System.canWrite(context)) "есть" else "нет",
+                        hint = "adb shell appops set com.pixelden.launcher WRITE_SETTINGS allow")
+                }
+            }
+
+            fold("backup", "Резервная копия") {
+                item {
+                    SettingRow("Сохранить настройки и сценарии", hint = store.exportFile().absolutePath) {
+                        toast(context, store.exportBackup().fold({ "Сохранено: ${it.name}" }, { "Ошибка: ${it.message}" }))
+                    }
+                }
+                item {
+                    SettingRow("Загрузить из файла", hint = "Заменит текущие настройки содержимым pixelden-backup.json") {
+                        toast(context, store.importBackup().fold({ "Загружено" }, { "Ошибка: ${it.message}" }))
+                    }
+                }
+            }
+
+            fold("about", "О программе", BuildConfig.VERSION_NAME) {
+                item { SettingRow("PixelDen ${BuildConfig.VERSION_NAME}", hint = "Шрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)") }
+            }
         }
 
         renameCat?.let { cat ->

@@ -25,7 +25,10 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -52,9 +55,10 @@ data class DenTheme(
 )
 
 val FONTS = listOf(
-    "pixelify" to "Pixelify Sans",
     "tiny5" to "Tiny5",
+    "handjet" to "Handjet",
     "press" to "Press Start 2P",
+    "pixelify" to "Pixelify Sans",
 )
 
 val ACCENTS = listOf(
@@ -70,6 +74,12 @@ private val pixelify = FontFamily(Font(R.font.pixelify_sans))
 private val tiny5 = FontFamily(Font(R.font.tiny5))
 private val press = FontFamily(Font(R.font.press_start_2p))
 
+// Handjet — переменный шрифт; берём полужирное начертание, оно читается на ТВ лучше всего.
+@OptIn(ExperimentalTextApi::class)
+private val handjet = FontFamily(
+    Font(R.font.handjet, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600)))
+)
+
 fun themeFrom(cfg: LauncherConfig): DenTheme {
     val bg = Color(cfg.background)
     val surface = Color(
@@ -83,10 +93,11 @@ fun themeFrom(cfg: LauncherConfig): DenTheme {
         blue = (bg.blue + 0.13f).coerceAtMost(1f),
     )
     val (font, scale) = when (cfg.font) {
-        "tiny5" -> tiny5 to 1.15f
+        "handjet" -> handjet to 1.2f
         // Press Start очень широкий — ужимаем, чтобы подписи помещались.
         "press" -> press to 0.62f
-        else -> pixelify to 1f
+        "pixelify" -> pixelify to 1f
+        else -> tiny5 to 1.05f
     }
     return DenTheme(
         colors = DenColors(
