@@ -11,7 +11,7 @@ data class LauncherConfig(
     val mascotEnabled: Boolean = true,
     val mascotSleepMinutes: Int = 3,
     val mascotSpeaks: Boolean = true,
-    val mascotScale: Int = 3,
+    val mascotScale: Int = 4,
 
     // Внешний вид
     val font: String = "tiny5",
@@ -72,8 +72,8 @@ object Defaults {
         if (c.defaultsVersion < 1) c = c.copy(hidden = (c.hidden + JUNK).distinct())
         // v2: Pixelify Sans не понравился — переводим на Tiny5.
         if (c.defaultsVersion < 2 && c.font == "pixelify") c = c.copy(font = "tiny5")
-        // v3: спрайты стали 64x48 — прежний масштаб 6 делал маскота огромным.
-        if (c.defaultsVersion < 3) c = c.copy(mascotScale = 3)
+        // v3: новые спрайты 32x32 — масштаб 4 даёт ~128 dp.
+        if (c.defaultsVersion < 3) c = c.copy(mascotScale = 4)
         return c.copy(defaultsVersion = VERSION)
     }
 }

@@ -3,7 +3,13 @@ package com.pixelden.launcher.ui
 import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -92,6 +98,8 @@ fun MascotSprite(
     talking: Boolean = false,
     roam: Int = 0,
     headroom: Int = 10,
+    /** Реплика в облачке над головой; ходит вместе с маскотом. */
+    bubble: String? = null,
 ) {
     val context = LocalContext.current
     val sheet = remember(mascot.id) { SheetCache.get(context, mascot.id) }
@@ -105,7 +113,7 @@ fun MascotSprite(
             while (isActive) {
                 val zs = pose.zs.map { (age, j) -> (age + 0.04f) to j }.filter { it.first < 1f } +
                     (if (t % 30 == 0) listOf(0f to Random.nextFloat()) else emptyList())
-                pose = pose.copy(frame = if ((t / 12) % 2 == 0) "sleep0" else "sleep1", dy = 0, zs = zs)
+                pose = pose.copy(frame = if ((t / 20) % 2 == 0) "sleep0" else "sleep1", dy = 0, zs = zs)
                 delay(100); t++
             }
         }
@@ -114,7 +122,7 @@ fun MascotSprite(
             while (isActive) {
                 if (!busy) pose = pose.copy(frame = "look", zs = emptyList())
                 delay(Random.nextLong(1500, 3200))
-                if (!busy) { pose = pose.copy(frame = "lookblink"); delay(140) }
+                if (!busy) { pose = pose.copy(frame = "lookblink"); delay(260) }
             }
         }
         coroutineScope {
@@ -142,14 +150,35 @@ fun MascotSprite(
     LaunchedEffect(jumpKey) {
         if (jumpKey == 0 || !animate || mood == MascotMood.SLEEP) return@LaunchedEffect
         busy = true
-        for (dy in listOf(2, 4, 6, 7, 7, 6, 4, 2, 0)) { pose = pose.copy(frame = "jump", dy = dy); delay(45) }
-        pose = pose.copy(frame = "happy", dy = 0); delay(900)
+        // присесть → невысокий плавный подскок → мягко приземлиться → улыбнуться
+        pose = pose.copy(frame = "crouch", dy = 0); delay(140)
+        for (dy in listOf(1, 2, 3, 3, 3, 2, 1, 0)) { pose = pose.copy(frame = "jump", dy = dy); delay(60) }
+        pose = pose.copy(frame = "crouch", dy = 0); delay(130)
+        pose = pose.copy(frame = "happy"); delay(1000)
         pose = pose.copy(frame = "sit0")
         busy = false
     }
 
     val widthPx = sheet.fw + roam
-    Canvas(modifier.size((widthPx * pixel).dp, ((sheet.fh + headroom) * pixel).dp)) {
+    val t = LocalDen.current
+    Box(modifier.size((widthPx * pixel).dp, ((sheet.fh + headroom) * pixel).dp)) {
+    if (bubble != null) {
+        // Облачко слева от головы: при любом размере маскота остаётся на экране и ходит вместе с ним.
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .offset {
+                    IntOffset(
+                        -((roam - pose.x + sheet.fw) * pixel).dp.roundToPx() + (sheet.fw * pixel / 5).dp.roundToPx(),
+                        ((headroom + sheet.fh / 4) * pixel).dp.roundToPx(),
+                    )
+                }
+                .wrapContentWidth(unbounded = true)
+                .pixelBox(t.colors.dim.copy(alpha = 0.5f), t.colors.surface, 2)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) { PText(bubble, 15.sp, t.colors.text) }
+    }
+    Canvas(Modifier.matchParentSize()) {
         val px = pixel.dp.toPx()
         val p = pose
         val col = sheet.index[p.frame] ?: 0
@@ -176,18 +205,35 @@ fun MascotSprite(
             drawZ(zx, zy, px * (if (age > 0.4f) 2f else 1.4f), Color.White.copy(alpha = (1f - age).coerceIn(0f, 1f)))
         }
     }
+    }
 }
 
+/** Плавное моргание: полуприкрыть → закрыть → полуприкрыть → открыть. */
+private suspend fun blink(set: (String) -> Unit, open: String = "sit0") {
+    set("half"); delay(70)
+    set("blink"); delay(110)
+    set("half"); delay(70)
+    set(open)
+}
+
+/**
+ * Спокойно сидит. Тело не дёргается: лишь изредка моргает и плавно поводит хвостом.
+ */
 private suspend fun sitFor(ms: Long, busy: () -> Boolean, set: (String) -> Unit) {
     var left = ms
-    var breath = 0
+    if (!busy()) set("sit0")
     while (left > 0) {
-        if (!busy()) {
-            if (Random.nextInt(7) == 0) { set("blink"); delay(130); left -= 130 }
-            set(if (breath % 2 == 0) "sit0" else "sit1")
+        val pause = Random.nextLong(2200, 4500)
+        delay(minOf(pause, left)); left -= pause
+        if (left <= 0 || busy()) continue
+        if (Random.nextInt(3) == 0) {
+            // хвост: два медленных взмаха
+            repeat(2) { set("sit1"); delay(420); set("sit0"); delay(380) }
+            left -= 1600
+        } else {
+            blink(set)
+            left -= 250
         }
-        val step = Random.nextLong(650, 900)
-        delay(step); left -= step; breath++
     }
 }
 
@@ -196,7 +242,7 @@ private suspend fun lookAtViewer(busy: () -> Boolean, set: (String) -> Unit) {
     if (busy()) return
     set("look")
     delay(Random.nextLong(1400, 2800))
-    if (Random.nextBoolean() && !busy()) { set("lookblink"); delay(140); set("look"); delay(Random.nextLong(600, 1400)) }
+    if (Random.nextBoolean() && !busy()) { set("lookblink"); delay(260); set("look"); delay(Random.nextLong(600, 1400)) }
     if (!busy()) set("sit0")
 }
 

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -265,26 +266,24 @@ private fun Header(
             }
         }
         if (cfg.mascotEnabled) {
-            // Реплика — слева от маскота, на уровне головы, чтобы не упираться в верх экрана.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val text = bubble ?: if (idle) null else focusedLabel
-                if (text != null) {
-                    Box(
-                        Modifier
-                            .padding(end = 4.dp, bottom = (cfg.mascotScale * 24).dp)
-                            .pixelBox(t.colors.dim.copy(alpha = 0.5f), t.colors.surface, 2)
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) { PText(text, 15.sp, t.colors.text) }
+            // Место под маскота фиксированное: его размер не двигает остальной интерфейс.
+            // Если маскот крупнее — он просто выходит за рамки места, не влияя на разметку.
+            Box(Modifier.size(width = 560.dp, height = 190.dp), contentAlignment = Alignment.BottomEnd) {
+                Box(Modifier.wrapContentSize(Alignment.BottomEnd, unbounded = true)) {
+                    // Реплика рисуется самим маскотом — облачко над головой ходит вместе с ним.
+                    MascotSprite(
+                        mascot = mascotById(cfg.mascot),
+                        pixel = cfg.mascotScale,
+                        mood = if (idle) MascotMood.SLEEP else MascotMood.IDLE,
+                        animate = t.animations,
+                        jumpKey = jump,
+                        talking = bubble != null,
+                        // полоса прогулок не шире места под маскота
+                        roam = (560 / cfg.mascotScale - 32).coerceIn(0, 100),
+                        headroom = 8,
+                        bubble = bubble ?: if (idle) null else focusedLabel,
+                    )
                 }
-                MascotSprite(
-                    mascot = mascotById(cfg.mascot),
-                    pixel = cfg.mascotScale,
-                    mood = if (idle) MascotMood.SLEEP else MascotMood.IDLE,
-                    animate = t.animations,
-                    jumpKey = jump,
-                    talking = bubble != null,
-                    roam = 90,
-                )
             }
         }
     }

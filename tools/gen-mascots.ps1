@@ -7,19 +7,18 @@ $root = Join-Path $PSScriptRoot ".."
 $out = Join-Path $root "app\src\main\assets\mascots"
 New-Item -ItemType Directory -Force $out | Out-Null
 
-# id, вид, тело, тень, светлое, розовое, глаза, полоски, кончик хвоста, носочки
+# id, вид, тело, тень, светлое, розовое, глаза, полоски, лапки, кончик хвоста, контур
 $defs = @(
-    @("pinch",    "blob", "E08A66", "C46A4A", "FFD9C2", "F49A9A", "3A2430", "",       "",       ""),
-    @("ember",    "fox",  "F58A3E", "D86A26", "FFF3E4", "F7A0A8", "3A2420", "",       "FFF6EA", "7A3A22"),
-    @("sprocket", "cat",  "A9AAB8", "8A8B9C", "EEEEF4", "F4A3B4", "3A3448", "7C7D8E", "",       ""),
-    @("nyx",      "cat",  "4D4860", "3C3850", "7A7590", "E59AB4", "B6E36A", "",       "",       ""),
-    @("mango",    "cat",  "F7A856", "E08A3A", "FFEBD2", "F6A0A6", "4A2A1A", "E2862E", "",       ""),
-    @("frost",    "cat",  "F6F5FA", "DCDBE8", "FFFFFF", "F8AABE", "4A8EDB", "",       "",       "")
+    @("pinch",    "blob", "DE8460", "BF6A48", "F6B898", "F2A0A0", "1B1A1F", "",       "",       "",       "1B1A1F"),
+    @("ember",    "fox",  "F28A3A", "D06A22", "FFF3E4", "F7A0A8", "1B1A1F", "",       "4A2A1C", "FFF6EA", "1B1A1F"),
+    @("sprocket", "cat",  "A9A9B4", "8A8A96", "ECECF2", "F2A7B5", "1B1A1F", "7A7A86", "",       "",       "1B1A1F"),
+    @("nyx",      "cat",  "3E3D48", "2E2D36", "5A5966", "D88AA0", "F2C14E", "",       "",       "",       "0E0D12"),
+    @("mango",    "cat",  "F2A250", "D8832E", "FFE9CF", "F4A0A6", "1B1A1F", "D4741E", "",       "",       "1B1A1F"),
+    @("frost",    "cat",  "F7F7FA", "D9D9E3", "FFFFFF", "F6A9BC", "4A9BEA", "",       "",       "",       "1B1A1F")
 )
-
 $sheets = @()
 foreach ($d in $defs) {
-    $pal = [MascotGen]::MakePal($d[2], $d[3], $d[4], $d[5], $d[6], $d[7], $d[8], $d[9], ($d[1] -eq "fox"))
+    $pal = [MascotGen]::MakePal($d[2], $d[3], $d[4], $d[5], $d[6], $d[7], $d[8], $d[9], $d[10])
     $sheet = [MascotGen]::Sheet($d[1], $pal)
     $sheet.Save((Join-Path $out "$($d[0]).png"), [System.Drawing.Imaging.ImageFormat]::Png)
     $sheets += ,@($d[0], $sheet)
@@ -27,7 +26,7 @@ foreach ($d in $defs) {
 Set-Content -Encoding ascii (Join-Path $out "frames.txt") ("{0} {1}`n{2}" -f [MascotGen]::W, [MascotGen]::H, ([MascotGen]::Frames -join " "))
 
 # Превью: все листы друг под другом, увеличенные в 4 раза, на тёмном фоне.
-$scale = 4
+$scale = 8
 $pw = [MascotGen]::W * [MascotGen]::Frames.Length * $scale
 $ph = [MascotGen]::H * $scale * $sheets.Count
 $prev = New-Object System.Drawing.Bitmap $pw, $ph
