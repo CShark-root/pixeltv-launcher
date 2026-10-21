@@ -340,7 +340,7 @@ public static class MascotGen
             // 0 — опора, 1 — шаг левой, 2 — опора, 3 — шаг правой
             if (ph == 1) { Legs(g, sp, top, 1, 0); armL = 0; armR = 1; hop = 1; wag = 1; }
             if (ph == 3) { Legs(g, sp, top, 0, 1); armL = 1; armR = 0; hop = 1; }
-            if (ph == 0 || ph == 2) squash = 1;
+            // без сжатия на опорных кадрах — так шаг выглядит плавно, без «дрожи»
             tailUp = ph % 2 == 1;
         }
 

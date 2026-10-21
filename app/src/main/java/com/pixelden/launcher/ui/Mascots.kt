@@ -269,11 +269,11 @@ private suspend fun walkTo(target: Int, pose: () -> Pose, busy: () -> Boolean, s
         if (busy()) { delay(100); continue }
         val p = pose()
         val dir = if (target > p.x) 1 else -1
-        // 2 пикселя спрайта за кадр: шаг выглядит естественно при 8 фазах ходьбы.
-        val nx = if (dir > 0) minOf(p.x + 2, target) else maxOf(p.x - 2, target)
+        // 1 пиксель за кадр и неспешный темп — походка плавная, без рывков.
+        val nx = if (dir > 0) minOf(p.x + 1, target) else maxOf(p.x - 1, target)
         set(p.copy(frame = "walk${phase % 8}", x = nx, faceLeft = dir < 0))
         phase++
-        delay(85)
+        delay(150)
     }
     set(pose().copy(frame = "sit0"))
 }

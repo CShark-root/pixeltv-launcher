@@ -61,6 +61,15 @@ val FONTS = listOf(
     "pixelify" to "Pixelify Sans",
 )
 
+val FOCUS_EFFECTS = listOf(
+    "scale" to "Только увеличение",
+    "dim" to "Затемнение остальных",
+    "glow" to "Свечение",
+    "glitch" to "Глюк",
+    "pixel" to "Пиксельное проявление",
+    "crt" to "ЭЛТ-развёртка",
+)
+
 val ACCENTS = listOf(
     0xFFD97757, 0xFFF2762E, 0xFFE8C547, 0xFF8BD450,
     0xFF4FD1C5, 0xFF4C9BE8, 0xFF9B7BF2, 0xFFF06292, 0xFFEDEDF2,

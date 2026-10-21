@@ -1,6 +1,22 @@
 package com.pixelden.launcher.ui
 
 import android.Manifest
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.focus.focusRequester
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -48,6 +64,7 @@ fun SettingsScreen(cfg: LauncherConfig) {
     val apps by app.apps.apps.collectAsState()
     val first = rememberAutoFocus()
     var renameCat by remember { mutableStateOf<Category?>(null) }
+    var pickWallpaper by remember { mutableStateOf(false) }
     val wallpapers = remember { listWallpapers() }
 
     fun set(f: (LauncherConfig) -> LauncherConfig) = store.update(f)
@@ -128,10 +145,19 @@ fun SettingsScreen(cfg: LauncherConfig) {
                 }
                 item {
                     val options = listOf<String?>(null) + wallpapers
-                    SettingRow("Обои", cfg.wallpaperPath?.let { File(it).nameWithoutExtension.take(28) } ?: "нет",
-                        hint = "Картинки из Pictures/Wallpapers и Pictures",
+                    SettingRow("Обои", cfg.wallpaperPath?.let { File(it).nameWithoutExtension.take(24) } ?: "нет",
+                        hint = "OK — выбрать с предпросмотром · < > — листать",
                         onLeft = { set { it.copy(wallpaperPath = options.cycle(it.wallpaperPath, -1)) } },
-                        onRight = { set { it.copy(wallpaperPath = options.cycle(it.wallpaperPath, 1)) } })
+                        onRight = { set { it.copy(wallpaperPath = options.cycle(it.wallpaperPath, 1)) } },
+                        trailing = { WallThumb(cfg.wallpaperPath, cfg.background, Modifier.padding(start = 12.dp).size(64.dp, 36.dp)) },
+                        onClick = { pickWallpaper = true })
+                }
+                item {
+                    val ids = FOCUS_EFFECTS.map { it.first }
+                    SettingRow("Эффект при наведении", (FOCUS_EFFECTS.firstOrNull { it.first == cfg.focusEffect } ?: FOCUS_EFFECTS.first()).second,
+                        hint = "Что происходит с карточкой приложения в фокусе",
+                        onLeft = { set { it.copy(focusEffect = ids.cycle(it.focusEffect, -1)) } },
+                        onRight = { set { it.copy(focusEffect = ids.cycle(it.focusEffect, 1)) } })
                 }
                 item {
                     SettingRow("Затемнение обоев", "${cfg.wallpaperDim}%",
@@ -249,6 +275,18 @@ fun SettingsScreen(cfg: LauncherConfig) {
             }
         }
 
+        if (pickWallpaper) {
+            WallpaperPicker(
+                current = cfg.wallpaperPath,
+                files = wallpapers,
+                background = cfg.background,
+                onDismiss = { pickWallpaper = false },
+            ) { path ->
+                set { it.copy(wallpaperPath = path) }
+                pickWallpaper = false
+            }
+        }
+
         renameCat?.let { cat ->
             TextEditOverlay("Название категории", cat.name, onDismiss = { renameCat = null }) { name ->
                 if (name.isNotBlank()) set { c -> c.copy(categories = c.categories.map { if (it.id == cat.id) it.copy(name = name.trim()) else it }) }
@@ -277,4 +315,66 @@ private fun listWallpapers(): List<String> {
         .map { it.absolutePath }
         .distinct()
         .sorted()
+}
+
+/** Миниатюра обоев: 4K-картинка ужимается в 16 раз, хватает и для плитки, и для превью в строке. */
+@Composable
+fun WallThumb(path: String?, background: Long, modifier: Modifier = Modifier) {
+    val img by produceState<ImageBitmap?>(null, path) {
+        value = if (path == null) null else withContext(Dispatchers.IO) {
+            runCatching {
+                BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = 16 })?.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    Box(modifier.background(Color(background)), contentAlignment = Alignment.Center) {
+        img?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+    }
+}
+
+/** Выбор обоев плитками с предпросмотром. Первая плитка — без обоев (просто цвет фона). */
+@Composable
+private fun WallpaperPicker(
+    current: String?,
+    files: List<String>,
+    background: Long,
+    onDismiss: () -> Unit,
+    onPick: (String?) -> Unit,
+) {
+    val t = LocalDen.current
+    val options = listOf<String?>(null) + files
+    val first = rememberAutoFocus()
+    Overlay("Обои", onDismiss, width = 960.dp) {
+        items(options.chunked(3)) { row ->
+            Row(Modifier.padding(bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                row.forEach { path ->
+                    var focused by remember { mutableStateOf(false) }
+                    val selected = path == current
+                    Column(Modifier.width(290.dp)) {
+                        Box(
+                            Modifier
+                                .size(290.dp, 163.dp)
+                                .let { if (path == options.first()) it.focusRequester(first) else it }
+                                .tvClickable(onFocus = { focused = it }) { onPick(path) }
+                                .pixelBox(
+                                    when { focused -> t.colors.accent; selected -> t.colors.text.copy(alpha = 0.6f); else -> Color.Transparent },
+                                    t.colors.surface, t.border,
+                                )
+                                .padding((t.border + 1).dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            WallThumb(path, background, Modifier.fillMaxSize())
+                            if (path == null) PText("Без обоев", 16.sp, t.colors.dim)
+                        }
+                        PText(
+                            (if (selected) "• " else "") + (path?.let { File(it).nameWithoutExtension.replace('_', ' ').take(30) } ?: "Только цвет фона"),
+                            13.sp,
+                            if (focused) t.colors.accent else t.colors.dim,
+                            Modifier.padding(top = 6.dp, start = 2.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
 }

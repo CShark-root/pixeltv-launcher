@@ -22,6 +22,8 @@ data class LauncherConfig(
     val animations: Boolean = true,
     val focusScale: Int = 6,
     val pixelBorder: Int = 3,
+    /** Эффект карточки в фокусе: scale, dim, glow, glitch, pixel, crt. */
+    val focusEffect: String = "scale",
 
     // Сетка
     val columns: Int = 6,

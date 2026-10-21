@@ -136,7 +136,7 @@ fun HomeScreen(
                     if (favorites.isEmpty()) {
                         PText("Удерживайте OK на приложении → «В избранное»", 14.sp, t.colors.dim, Modifier.padding(bottom = 18.dp))
                     } else {
-                        AppRow(favorites, "fav", cfg, cfg.cardSize * 2.6f, restoreKey,
+                        AppRow(favorites, "fav", cfg, cfg.cardSize * 1.9f, restoreKey,
                             onFocus = { e, k -> focusedLabel = labelOf(cfg, e); lastFocusKey = k },
                             onClick = ::launch, onLong = { menuFor = it })
                     }
@@ -161,9 +161,11 @@ fun HomeScreen(
                 }
             }
             if (cfg.showAllApps) {
-                item { RowTitle("Все приложения · ${visible.size}") }
+                // Избранное не дублируем в общей сетке.
+                val rest = visible.filter { it.pkg !in cfg.favorites }
+                item { RowTitle("Все приложения · ${rest.size}") }
                 item {
-                    AppGrid(visible, cfg, restoreKey,
+                    AppGrid(rest, cfg, restoreKey,
                         onFocus = { e, k -> focusedLabel = labelOf(cfg, e); lastFocusKey = k },
                         onClick = ::launch, onLong = { menuFor = it })
                 }
@@ -279,7 +281,7 @@ private fun Header(
                         jumpKey = jump,
                         talking = bubble != null,
                         // полоса прогулок не шире места под маскота
-                        roam = (560 / cfg.mascotScale - 32).coerceIn(0, 100),
+                        roam = (360 / cfg.mascotScale - 32).coerceIn(0, 40),
                         headroom = 8,
                         bubble = bubble ?: if (idle) null else focusedLabel,
                     )
@@ -376,15 +378,22 @@ private fun AppCard(
     }
     val height = width * 9f / 16f
     val scale = if (focused) t.focusScale else 1f
+    val effect = cfg.focusEffect
+    // «Затемнение остальных»: пока в фокусе другая карточка, эта приглушена.
+    val dimmed = effect == "dim" && !focused && CardFocus.key != null
 
-    Column(Modifier.width(width)) {
+    Column(Modifier.width(width).graphicsLayer { alpha = if (dimmed) 0.35f else 1f }) {
         Box(
             Modifier
                 .size(width, height)
                 .focusRequester(fr)
                 .graphicsLayer { scaleX = scale; scaleY = scale }
+                .focusGlow(effect == "glow" && focused, t.colors.accent)
                 .tvClickable(
-                    onFocus = { focused = it; if (it) onFocused() },
+                    onFocus = {
+                        focused = it
+                        if (it) { CardFocus.key = key; onFocused() } else if (CardFocus.key == key) CardFocus.key = null
+                    },
                     onLongClick = onLong,
                     onClick = onClick,
                 )
@@ -395,8 +404,8 @@ private fun AppCard(
             val b = banner
             val i = icon
             when {
-                b != null -> Image(b, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, filterQuality = FilterQuality.Medium)
-                i != null -> Image(i, null, Modifier.size(height * 0.55f))
+                b != null -> CardImage(b, isBanner = true, effect = effect, focused = focused, accent = t.colors.accent)
+                i != null -> CardImage(i, isBanner = false, effect = effect, focused = focused, accent = t.colors.accent)
                 else -> PText(e.label.take(2).uppercase(), 22.sp, t.colors.dim)
             }
         }
