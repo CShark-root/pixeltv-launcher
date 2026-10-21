@@ -246,6 +246,8 @@ fun MascotSprite(
     animate: Boolean,
     jumpKey: Int = 0,
     talking: Boolean = false,
+    /** Запас сверху под прыжок и «Z»; в превью настроек не нужен. */
+    headroom: Int = 8,
     modifier: Modifier = Modifier,
 ) {
     var pose by remember(mascot.id) { mutableStateOf(Pose()) }
@@ -368,7 +370,6 @@ fun MascotSprite(
         excited = false
     }
 
-    val headroom = 8
     Canvas(modifier.size((mascot.width * pixel).dp, ((mascot.height + headroom) * pixel).dp)) {
         val px = pixel.dp.toPx()
         val p = pose

@@ -66,6 +66,7 @@ fun SettingsScreen(cfg: LauncherConfig) {
                 (if (open) "v  " else ">  ") + title,
                 value = summary,
                 focusRequester = focus,
+                arrows = false,
                 onLeft = { openSections = openSections - key },
                 onRight = { openSections = openSections + key },
                 onClick = { openSections = if (open) openSections - key else openSections + key },
@@ -89,7 +90,7 @@ fun SettingsScreen(cfg: LauncherConfig) {
                         "Кто живёт в лаунчере", m.name, hint = m.note,
                         onLeft = { set { it.copy(mascot = MASCOTS.map { m -> m.id }.cycle(it.mascot, -1)) } },
                         onRight = { set { it.copy(mascot = MASCOTS.map { m -> m.id }.cycle(it.mascot, 1)) } },
-                        trailing = { MascotSprite(m, 3, MascotMood.IDLE, t.animations, modifier = Modifier.padding(start = 12.dp)) },
+                        trailing = { MascotSprite(m, 3, MascotMood.IDLE, t.animations, headroom = 1, modifier = Modifier.padding(start = 12.dp)) },
                     )
                 }
                 item { ToggleRow("Показывать маскота", cfg.mascotEnabled) { v -> set { it.copy(mascotEnabled = v) } } }

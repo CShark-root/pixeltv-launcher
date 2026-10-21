@@ -69,6 +69,8 @@ fun SettingRow(
     onRight: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
+    /** Рисовать ли «< значение >» в фокусе. У заголовков разделов ◀ ▶ сворачивают, а не листают. */
+    arrows: Boolean = true,
     onClick: (() -> Unit)? = null,
 ) {
     val t = LocalDen.current
@@ -103,9 +105,9 @@ fun SettingRow(
         }
         trailing?.invoke()
         if (value != null) {
-            val arrows = onLeft != null || onRight != null
+            val showArrows = arrows && (onLeft != null || onRight != null)
             PText(
-                if (arrows && focused) "< $value >" else value,
+                if (showArrows && focused) "< $value >" else value,
                 18.sp,
                 if (focused) t.colors.accent else t.colors.dim,
                 Modifier.padding(start = 16.dp),
