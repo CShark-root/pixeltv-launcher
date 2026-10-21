@@ -34,6 +34,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -318,8 +320,9 @@ private fun AppRow(
     val state = rememberLazyListState()
     LazyRow(
         state = state,
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
-        contentPadding = PaddingValues(vertical = 10.dp, horizontal = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+        // Запас по краям: карточка в фокусе увеличивается и не должна обрезаться рядом.
+        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 20.dp),
     ) {
         items(list, key = { "$prefix:${it.pkg}" }) { e ->
             val key = "$prefix:${e.pkg}"
@@ -339,8 +342,8 @@ private fun AppGrid(
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val gap = 18.dp
-        val w = (maxWidth - gap * (cfg.columns - 1) - 12.dp) / cfg.columns
-        Column(verticalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.padding(6.dp)) {
+        val w = (maxWidth - gap * (cfg.columns - 1) - 40.dp) / cfg.columns
+        Column(verticalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
             list.chunked(cfg.columns).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                     row.forEach { e ->
@@ -397,16 +400,28 @@ private fun AppCard(
                     onLongClick = onLong,
                     onClick = onClick,
                 )
-                .pixelBox(if (focused) t.colors.accent else Color.Transparent, t.colors.surface, t.border)
-                .padding((t.border + 1).dp),
+                .pixelBox(Color.Transparent, t.colors.surface, t.border)
+                // Рамка фокуса рисуется ПОВЕРХ картинки — так её ничто не перекроет.
+                .drawWithContent {
+                    drawContent()
+                    if (focused) pixelFrame(t.colors.accent, null, t.border.dp.toPx())
+                },
             contentAlignment = Alignment.Center,
         ) {
-            val b = banner
-            val i = icon
-            when {
-                b != null -> CardImage(b, isBanner = true, effect = effect, focused = focused, accent = t.colors.accent)
-                i != null -> CardImage(i, isBanner = false, effect = effect, focused = focused, accent = t.colors.accent)
-                else -> PText(e.label.take(2).uppercase(), 22.sp, t.colors.dim)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding((t.border + 1).dp)
+                    .clipToBounds(),
+                contentAlignment = Alignment.Center,
+            ) {
+                val b = banner
+                val i = icon
+                when {
+                    b != null -> CardImage(b, isBanner = true, effect = effect, focused = focused, accent = t.colors.accent)
+                    i != null -> CardImage(i, isBanner = false, effect = effect, focused = focused, accent = t.colors.accent)
+                    else -> PText(e.label.take(2).uppercase(), 22.sp, t.colors.dim)
+                }
             }
         }
         if (cfg.showLabels) {
