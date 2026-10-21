@@ -30,19 +30,19 @@ public static class MascotGen
         "..ooooooooo",
         "..oppooomom",
         "..ooooooomo",
-        "..ooooooooo",
-        "..ooooowwww",
-        "..zoooowwww",
-        "..oooowwwww",
-        "..zooowwwww",
-        "..ooooowwww",
-        "..ooooowwww",
-        "..ooooooooo",
-        "..ooooooooo",
         "...oooooooo",
-        "...ffff....",
-        "...ffff....",
-        "...ffff....",
+        "....ooowwww",
+        "....zoowwww",
+        "....oowwwww",
+        "....zowwwww",
+        "....ooowwww",
+        "....ooowwww",
+        "....ooooooo",
+        "....ooooooo",
+        "....ooooooo",
+        "....fff....",
+        "....fff....",
+        "....fff....",
     };
 
     static readonly string[] FOX = {
@@ -60,18 +60,18 @@ public static class MascotGen
         "..wwoooowww",
         "..wwwwwwwwm",
         "...wwwwwwww",
-        "..ooowwwwww",
-        "..ooowwwwww",
-        "..ooowwwwww",
-        "..oooowwwww",
-        "..ooooowwww",
-        "..ooooowwww",
-        "..ooooooooo",
-        "..ooooooooo",
-        "...oooooooo",
-        "...ffff....",
-        "...ffff....",
-        "...ffff....",
+        "....oowwwww",
+        "....oowwwww",
+        "....oowwwww",
+        "....ooowwww",
+        "....ooowwww",
+        "....ooowwww",
+        "....ooooooo",
+        "....ooooooo",
+        "....ooooooo",
+        "....fff....",
+        "....fff....",
+        "....fff....",
     };
 
     static readonly string[] BLOB = {
@@ -102,14 +102,15 @@ public static class MascotGen
         public int LegRow;                     // первая строка лапок
         public int[] Legs;                     // пары (x, ширина) левых лапок
         public int TailRow;                    // строка основания хвоста
+        public int BodyX;                      // левый край туловища (к нему крепятся ручки и хвост)
         public string Tail;                    // cat / fox / null
         public int BreathRow;                  // строка, которую «съедает» вдох
     }
 
     static readonly Dictionary<string, Species> SPECIES = new Dictionary<string, Species> {
-        { "cat",  new Species { Half = CAT,  EyeRow = 7, EyeX = 5, EyeW = 2, EyeH = 2, ArmRow = 13, LegRow = 22, Legs = new[] { 3, 4 },       TailRow = 20, Tail = "cat", BreathRow = 18 } },
-        { "fox",  new Species { Half = FOX,  EyeRow = 8, EyeX = 5, EyeW = 2, EyeH = 2, ArmRow = 14, LegRow = 23, Legs = new[] { 3, 4 },       TailRow = 21, Tail = "fox", BreathRow = 19 } },
-        { "blob", new Species { Half = BLOB, EyeRow = 4, EyeX = 5, EyeW = 1, EyeH = 3, ArmRow = 8,  LegRow = 14, Legs = new[] { 3, 2, 7, 2 }, TailRow = 12, Tail = null,  BreathRow = 11 } },
+        { "cat",  new Species { Half = CAT,  EyeRow = 7, EyeX = 5, EyeW = 2, EyeH = 2, ArmRow = 13, LegRow = 22, Legs = new[] { 4, 3 },       TailRow = 20, BodyX = 4, Tail = "cat", BreathRow = 18 } },
+        { "fox",  new Species { Half = FOX,  EyeRow = 8, EyeX = 5, EyeW = 2, EyeH = 2, ArmRow = 14, LegRow = 23, Legs = new[] { 4, 3 },       TailRow = 21, BodyX = 4, Tail = "fox", BreathRow = 19 } },
+        { "blob", new Species { Half = BLOB, EyeRow = 4, EyeX = 5, EyeW = 1, EyeH = 3, ArmRow = 8,  LegRow = 14, Legs = new[] { 3, 2, 7, 2 }, TailRow = 12, BodyX = 2, Tail = null,  BreathRow = 11 } },
     };
 
     // ------------------------------------------------------------------ палитра
@@ -215,7 +216,7 @@ public static class MascotGen
         }
         for (int i = 0; i < cells.GetLength(0); i++)
         {
-            int x = OX + cells[i, 0], yy = y + cells[i, 1];
+            int x = OX + sp.BodyX - 2 + cells[i, 0], yy = y + cells[i, 1];
             g[side == 0 ? x : Mir(x), yy] = 'a';
         }
     }
@@ -245,7 +246,7 @@ public static class MascotGen
         if (sp.Tail == null) return;
         bool fox = sp.Tail == "fox";
         int t = fox ? 3 : 2;
-        int bx = Mir(OX + 3) + 1;          // сразу за правым боком
+        int bx = Mir(OX + sp.BodyX) + 1;   // сразу за правым боком туловища
         int by = top + sp.TailRow;
         int len = 3, rise = up ? 7 : 5;
         for (int dx = 0; dx < len; dx++) for (int k = 0; k < t; k++) g[bx + dx, by - k + (t - 2)] = 't';
