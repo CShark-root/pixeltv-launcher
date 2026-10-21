@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Баннер 320x180: тёмный фон и пиксельный "краб" -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="32"
+    android:viewportHeight="18">
+    <path android:fillColor="#FF14121A" android:pathData="M0,0h32v18h-32z" />
+    <path android:fillColor="#FFD97757" android:pathData="M11,5h10v6h-10z M9,7h2v2h-2z M21,7h2v2h-2z M12,11h1v2h-1z M14,11h1v2h-1z M17,11h1v2h-1z M19,11h1v2h-1z" />
+    <path android:fillColor="#FF14121A" android:pathData="M13,7h1v2h-1z M18,7h1v2h-1z" />
+</vector>

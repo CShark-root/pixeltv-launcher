@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="a11y_description">Позволяет PixelDen ловить нажатия кнопок пульта для сценариев и нажимать пункты меню по сценарию (например, выбирать S/PDIF после загрузки).</string>
+</resources>
