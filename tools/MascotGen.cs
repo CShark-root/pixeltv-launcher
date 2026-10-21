@@ -244,7 +244,8 @@ public static class MascotGen
     static void Tail(Grid g, Species sp, int top, int wag, bool up)
     {
         if (sp.Tail == null) return;
-        bool fox = sp.Tail == "fox";
+        if (sp.Tail == "fox") { FoxTail(g, sp, top, wag, up); return; }
+        bool fox = false;
         int t = fox ? 3 : 2;
         int bx = Mir(OX + sp.BodyX) + 1;   // сразу за правым боком туловища
         int by = top + sp.TailRow;
@@ -255,6 +256,33 @@ public static class MascotGen
             int sh = wag == 1 && dy > rise - 3 ? 1 : 0;
             bool tip = dy > rise - (fox ? 3 : 2);
             for (int k = 0; k < t; k++) g[bx + len - 1 + k - (t - 2) + sh - (t > 2 ? 1 : 0), by - dy + (t - 2)] = tip ? 'x' : 't';
+        }
+    }
+
+    /// Пушистый лисий хвост: выходит из-за бока, расширяется кверху, белый кончик.
+    /// Строки — снизу вверх; пара (от, до) — колонки относительно правого бока туловища.
+    static void FoxTail(Grid g, Species sp, int top, int wag, bool up)
+    {
+        int bx = Mir(OX + sp.BodyX) + 2;   // за опущенной ручкой, без шва
+        int by = top + sp.TailRow + 1;
+        int[,] rows = {
+            { 0, 2 },   // основание у бока
+            { 0, 3 },
+            { 1, 4 },
+            { 1, 5 },
+            { 2, 5 },
+            { 2, 5 },   // дальше — белый кончик
+            { 2, 5 },
+            { 3, 4 },
+        };
+        int n = rows.GetLength(0);
+        int lift = up ? 1 : 0;
+        for (int i = 0; i < n; i++)
+        {
+            int sh = wag == 1 && i >= 4 ? 1 : 0;    // верх хвоста качается
+            bool tip = i >= n - 3;
+            for (int dx = rows[i, 0]; dx <= rows[i, 1]; dx++)
+                g[bx + dx + sh, by - i - lift] = tip ? 'x' : 't';
         }
     }
 
