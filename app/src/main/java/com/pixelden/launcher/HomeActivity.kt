@@ -102,6 +102,7 @@ class HomeActivity : ComponentActivity() {
                                 cfg, s.page,
                                 onOpenPage = { go(Screen.Settings(it)) },
                                 onOpenLog = { go(Screen.Log) },
+                                onBackToHub = { go(Screen.Settings()) },
                             )
                             Screen.Log -> DebugLogScreen()
                             Screen.Scenarios -> ScenarioListScreen(cfg) { id -> go(Screen.Editor(id)) }

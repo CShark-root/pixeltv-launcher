@@ -65,8 +65,14 @@ fun SettingsScreen(
     page: String?,
     onOpenPage: (String) -> Unit,
     onOpenLog: () -> Unit = {},
+    onBackToHub: () -> Unit = {},
 ) {
-    if (page == null) SettingsHub(cfg, onOpenPage) else SettingsPage(cfg, page, onOpenLog)
+    when (page) {
+        null -> SettingsHub(cfg, onOpenPage)
+        // Калибровке нужен весь экран без рамок настроек.
+        "calib" -> CalibrationScreen(onExit = onBackToHub)
+        else -> SettingsPage(cfg, page, onOpenLog)
+    }
 }
 
 @Composable
