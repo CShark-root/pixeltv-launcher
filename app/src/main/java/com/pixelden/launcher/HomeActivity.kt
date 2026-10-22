@@ -31,6 +31,7 @@ import com.pixelden.launcher.ui.PixelCoverOverlay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.platform.AndroidUiDispatcher
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Box
@@ -129,7 +130,8 @@ class HomeActivity : ComponentActivity() {
         val cfg = PixelDenApp.instance.store.current
         if (!cfg.animations || cfg.screenTransition != "pixels") { screen = target; return }
         navJob?.cancel()
-        navJob = lifecycleScope.launch {
+        // AndroidUiDispatcher.Main даёт кадровые часы Compose — без них Animatable падает.
+        navJob = lifecycleScope.launch(AndroidUiDispatcher.Main) {
             coverSeed++
             cover.animateTo(1f, tween(170, easing = LinearEasing))
             screen = target
