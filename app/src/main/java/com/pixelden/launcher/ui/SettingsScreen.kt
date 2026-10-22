@@ -48,6 +48,7 @@ import com.pixelden.launcher.BuildConfig
 import com.pixelden.launcher.PixelDenApp
 import com.pixelden.launcher.data.Category
 import com.pixelden.launcher.data.LauncherConfig
+import com.pixelden.launcher.scenario.DebugLog
 import com.pixelden.launcher.scenario.DenAccessibilityService
 import com.pixelden.launcher.scenario.Templates
 import java.io.File
@@ -56,7 +57,7 @@ import java.io.File
 private var openSections by mutableStateOf(setOf<String>())
 
 @Composable
-fun SettingsScreen(cfg: LauncherConfig) {
+fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
     val app = PixelDenApp.instance
     val store = app.store
     val context = LocalContext.current
@@ -65,6 +66,7 @@ fun SettingsScreen(cfg: LauncherConfig) {
     val first = rememberAutoFocus()
     var renameCat by remember { mutableStateOf<Category?>(null) }
     var pickWallpaper by remember { mutableStateOf(false) }
+    var tvBacklight by remember { mutableStateOf(readBacklight(context)) }
     val wallpapers = remember { listWallpapers() }
 
     fun set(f: (LauncherConfig) -> LauncherConfig) = store.update(f)
@@ -153,13 +155,6 @@ fun SettingsScreen(cfg: LauncherConfig) {
                         onClick = { pickWallpaper = true })
                 }
                 item {
-                    val ids = FOCUS_EFFECTS.map { it.first }
-                    SettingRow("Эффект при наведении", (FOCUS_EFFECTS.firstOrNull { it.first == cfg.focusEffect } ?: FOCUS_EFFECTS.first()).second,
-                        hint = "Что происходит с карточкой приложения в фокусе",
-                        onLeft = { set { it.copy(focusEffect = ids.cycle(it.focusEffect, -1)) } },
-                        onRight = { set { it.copy(focusEffect = ids.cycle(it.focusEffect, 1)) } })
-                }
-                item {
                     SettingRow("Затемнение обоев", "${cfg.wallpaperDim}%",
                         onLeft = { set { it.copy(wallpaperDim = it.wallpaperDim.stepIn(-10, 0..90)) } },
                         onRight = { set { it.copy(wallpaperDim = it.wallpaperDim.stepIn(10, 0..90)) } })
@@ -174,6 +169,30 @@ fun SettingsScreen(cfg: LauncherConfig) {
                     SettingRow("Толщина пиксельной рамки", "${cfg.pixelBorder}",
                         onLeft = { set { it.copy(pixelBorder = it.pixelBorder.stepIn(-1, 1..8)) } },
                         onRight = { set { it.copy(pixelBorder = it.pixelBorder.stepIn(1, 1..8)) } })
+                }
+            }
+
+            fold("effects", "Эффекты при наведении", "${cfg.focusEffects.size} вкл") {
+                item { PText("Можно включать несколько сразу — они сочетаются.", 14.sp, t.colors.dim, Modifier.padding(4.dp, 0.dp, 0.dp, 8.dp)) }
+                items(FOCUS_EFFECTS, key = { "fx" + it.first }) { (id, label) ->
+                    ToggleRow(label.removePrefix("Только "), id in cfg.focusEffects) { on ->
+                        set { c -> c.copy(focusEffects = if (on) (c.focusEffects + id).distinct() else c.focusEffects - id) }
+                    }
+                }
+            }
+
+            fold("tv", "Телевизор", "подсветка ${tvBacklight}%") {
+                item {
+                    SettingRow("Подсветка экрана", "$tvBacklight%",
+                        hint = "Меняет подсветку панели (то же, что в настройках изображения ТВ)",
+                        onLeft = { tvBacklight = setBacklight(context, tvBacklight - 5) },
+                        onRight = { tvBacklight = setBacklight(context, tvBacklight + 5) })
+                }
+                items(TV_PAGES, key = { "tv" + it.second }) { (label, action) ->
+                    SettingRow(label) {
+                        runCatching { context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            .onFailure { toast(context, "Эта страница на ТВ недоступна") }
+                    }
                 }
             }
 
@@ -254,6 +273,20 @@ fun SettingsScreen(cfg: LauncherConfig) {
                 item {
                     SettingRow("Яркость (WRITE_SETTINGS)", if (Settings.System.canWrite(context)) "есть" else "нет",
                         hint = "adb shell appops set com.pixelden.launcher WRITE_SETTINGS allow")
+                }
+            }
+
+            fold("debug", "Отладка", if (DebugLog.logKeys) "кнопки пишутся" else null) {
+                item { SettingRow("Открыть журнал", hint = "Запуски сценариев, их шаги, ошибки и нажатия кнопок", onClick = onOpenLog) }
+                item {
+                    ToggleRow("Записывать нажатия кнопок", DebugLog.logKeys, "Нажмите кнопку пульта — в журнале будет её код и привязанные сценарии") { v ->
+                        DebugLog.logKeys = v
+                    }
+                }
+                item {
+                    SettingRow("Сохранить журнал и конфиг в файл", hint = "/sdcard/Download/pixelden-debug.txt") {
+                        toast(context, "Сохранено: " + DebugLog.dumpToFile(context, cfg).name)
+                    }
                 }
             }
 
@@ -377,4 +410,27 @@ private fun WallpaperPicker(
             }
         }
     }
+}
+
+/** Системные страницы настроек телевизора. */
+private val TV_PAGES = listOf(
+    "Все настройки ТВ" to Settings.ACTION_SETTINGS,
+    "Изображение и экран" to Settings.ACTION_DISPLAY_SETTINGS,
+    "Звук и аудиовыход" to Settings.ACTION_SOUND_SETTINGS,
+    "Сеть и Wi-Fi" to Settings.ACTION_WIFI_SETTINGS,
+    "Приложения" to Settings.ACTION_APPLICATION_SETTINGS,
+    "Дата и время" to Settings.ACTION_DATE_SETTINGS,
+    "Специальные возможности" to Settings.ACTION_ACCESSIBILITY_SETTINGS,
+    "Для разработчиков" to Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS,
+)
+
+/** Подсветка Xiaomi: global/picture_backlight, 0..100. ТВ применяет новое значение сам. */
+private fun readBacklight(context: Context): Int =
+    runCatching { Settings.Global.getInt(context.contentResolver, "picture_backlight") }.getOrDefault(100)
+
+private fun setBacklight(context: Context, value: Int): Int {
+    val v = value.coerceIn(0, 100)
+    runCatching { Settings.Global.putInt(context.contentResolver, "picture_backlight", v) }
+        .onFailure { toast(context, "Нет прав: adb shell pm grant com.pixelden.launcher android.permission.WRITE_SECURE_SETTINGS") }
+    return v
 }

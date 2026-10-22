@@ -123,9 +123,15 @@ fun themeFrom(cfg: LauncherConfig): DenTheme {
 
 val LocalDen = staticCompositionLocalOf { themeFrom(LauncherConfig()) }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun DenThemeProvider(theme: DenTheme, content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalDen provides theme, content = content)
+    val scroll = remember(theme.animations) { EdgeScrollSpec(edge = 0.18f, animate = theme.animations) }
+    CompositionLocalProvider(
+        LocalDen provides theme,
+        androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides scroll,
+        content = content,
+    )
 }
 
 @Composable

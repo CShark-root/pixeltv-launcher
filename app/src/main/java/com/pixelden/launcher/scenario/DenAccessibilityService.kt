@@ -26,6 +26,7 @@ class DenAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         instance = this
+        DebugLog.i("служба кнопок подключена (flags=${serviceInfo?.flags})")
     }
 
     override fun onUnbind(intent: android.content.Intent?): Boolean {
@@ -46,6 +47,13 @@ class DenAccessibilityService : AccessibilityService() {
 
         val app = PixelDenApp.instance
         val bindings = app.engine.keyBindings(event.keyCode)
+        if (DebugLog.logKeys && event.repeatCount == 0) {
+            DebugLog.i(
+                "кнопка ${KeyEvent.keyCodeToString(event.keyCode)} (${event.keyCode}) " +
+                    (if (event.action == KeyEvent.ACTION_DOWN) "↓" else "↑") +
+                    if (bindings.isEmpty()) "" else " → привязано: " + bindings.map { "${it.key}: ${it.value.name}" }.joinToString()
+            )
+        }
         if (bindings.isEmpty()) return false
         val short = bindings[PressType.SHORT]
         val long = bindings[PressType.LONG]
@@ -59,14 +67,14 @@ class DenAccessibilityService : AccessibilityService() {
                     longFired = false
                     if (double != null && lastUpKey == event.keyCode && now - lastUpAt < 400) {
                         swallowUntilUp = true
-                        app.engine.run(double)
+                        app.engine.run(double, "кнопка ×2")
                         return true
                     }
                     return short != null
                 }
                 if (long != null && !longFired && now - downAt >= 600) {
                     longFired = true
-                    app.engine.run(long)
+                    app.engine.run(long, "кнопка удержание")
                 }
                 return short != null || longFired || swallowUntilUp
             }
@@ -77,7 +85,12 @@ class DenAccessibilityService : AccessibilityService() {
                 if (longFired) return true
                 if (short != null) {
                     // Пульт без автоповтора: длинное определяем по длительности при отпускании.
-                    if (long != null && now - downAt >= 600) app.engine.run(long) else app.engine.run(short)
+                    if (long != null && now - downAt >= 600) app.engine.run(long, "кнопка удержание") else app.engine.run(short, "кнопка")
+                    return true
+                }
+                // Только «удержание»: пульт Xiaomi не шлёт автоповтор, поэтому считаем по длительности здесь.
+                if (long != null && now - downAt >= 600) {
+                    app.engine.run(long, "кнопка удержание")
                     return true
                 }
                 return false

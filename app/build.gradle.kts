@@ -54,4 +54,6 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.6")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.2")
+    // Ставит готовые профили компиляции Compose — меньше подлагиваний после установки.
+    implementation("androidx.profileinstaller:profileinstaller:1.3.1")
 }

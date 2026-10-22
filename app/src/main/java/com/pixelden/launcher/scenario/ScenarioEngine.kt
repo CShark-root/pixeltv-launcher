@@ -40,28 +40,37 @@ class ScenarioEngine(
             .filter { it.enabled && (it.trigger as? Trigger.Key)?.keyCode == keyCode }
             .associateBy { (it.trigger as Trigger.Key).press }
 
-    fun onBoot() {
-        if (bootFired) return
+    fun onBoot(source: String) {
+        if (bootFired) { DebugLog.i("загрузка ($source): уже обработана"); return }
         bootFired = true
-        for (s in store.current.scenarios) {
-            val t = s.trigger as? Trigger.Boot ?: continue
+        val boot = store.current.scenarios.filter { it.trigger is Trigger.Boot }
+        DebugLog.i("загрузка ($source): сценариев с триггером загрузки ${boot.size}, включено ${boot.count { it.enabled }}")
+        for (s in boot) {
             if (!s.enabled) continue
+            val t = s.trigger as Trigger.Boot
             scope.launch {
                 delay(t.delaySec * 1000L)
-                run(s)
+                run(s, "загрузка")
             }
         }
     }
 
-    fun run(s: Scenario) {
+    fun run(s: Scenario, source: String = "вручную") {
         running[s.id]?.cancel()
         running[s.id] = scope.launch {
-            Log.i(TAG, "run ${s.name}")
+            DebugLog.i("▶ ${s.name} [$source], шагов: ${s.actions.size}")
             try {
-                for (a in s.actions) execute(a)
+                s.actions.forEachIndexed { i, a ->
+                    DebugLog.i("  ${i + 1}. ${a.javaClass.simpleName}")
+                    execute(a)
+                }
+                DebugLog.i("✓ ${s.name}")
                 _events.value = "Готово: ${s.name}"
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                DebugLog.i("✗ ${s.name}: перезапущен")
+                throw e
             } catch (e: Exception) {
-                Log.w(TAG, "scenario ${s.name} failed", e)
+                DebugLog.e("✗ ${s.name}", e)
                 _events.value = "Не вышло: ${s.name} (${e.message ?: e.javaClass.simpleName})"
             }
         }
@@ -69,14 +78,24 @@ class ScenarioEngine(
 
     fun clearEvent() { _events.value = null }
 
+    /**
+     * Запуск окна. Android 10 не даёт приложениям открывать окна из фона, поэтому запускаем через
+     * контекст службы спецвозможностей (система её привязала — ей можно) и только потом — через своё приложение.
+     */
+    private fun start(intent: Intent) {
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val svc = DenAccessibilityService.instance
+        if (svc != null) svc.startActivity(intent) else context.startActivity(intent)
+    }
+
     private suspend fun execute(a: Action) {
         val apps = PixelDenApp.instance.apps
         when (a) {
             is Action.LaunchApp -> {
                 val i = apps.launchIntent(a.pkg) ?: error("приложение ${a.pkg} не найдено")
-                context.startActivity(i)
+                start(i)
             }
-            is Action.OpenInput -> context.startActivity(apps.inputIntent(a.inputId))
+            is Action.OpenInput -> start(apps.inputIntent(a.inputId))
             is Action.Volume -> {
                 val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
                 val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
@@ -91,14 +110,21 @@ class ScenarioEngine(
                 )
             }
             is Action.Brightness -> {
-                if (!Settings.System.canWrite(context)) error("нет права WRITE_SETTINGS")
-                Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, (a.percent * 255 / 100).coerceIn(0, 255))
+                // У Xiaomi подсветку панели держит global/picture_backlight (0..100): ТВ сам применяет новое значение.
+                // Стандартная screen_brightness на этом телевизоре ничего не меняет.
+                val v = a.percent.coerceIn(0, 100)
+                val ok = runCatching { Settings.Global.putInt(context.contentResolver, "picture_backlight", v) }.getOrDefault(false)
+                if (!ok) {
+                    if (!Settings.System.canWrite(context)) error("нет прав на запись настроек")
+                    Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, v * 255 / 100)
+                }
+                DebugLog.i("    подсветка → $v")
             }
             Action.Sleep -> service().performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
             Action.GoHome -> service().performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
             Action.Back -> service().performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
             is Action.Wait -> delay(a.seconds * 1000L)
-            is Action.OpenSettings -> context.startActivity(Intent(a.intentAction).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            is Action.OpenSettings -> start(Intent(a.intentAction))
             is Action.ClickText -> clickText(a.text, a.timeoutSec)
             is Action.PutSetting -> putSetting(a)
             is Action.Toast -> Toast.makeText(context, a.text, Toast.LENGTH_SHORT).show()

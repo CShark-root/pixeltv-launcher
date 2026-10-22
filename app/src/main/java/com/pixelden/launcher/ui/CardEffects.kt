@@ -49,17 +49,17 @@ fun Modifier.focusGlow(active: Boolean, color: Color): Modifier = if (!active) t
  * Картинка карточки с эффектом фокуса. Рисует баннер на весь блок (или иконку по центру, если баннера нет).
  */
 @Composable
-fun CardImage(image: ImageBitmap, isBanner: Boolean, effect: String, focused: Boolean, accent: Color) {
+fun CardImage(image: ImageBitmap, isBanner: Boolean, effects: Set<String>, focused: Boolean, accent: Color) {
     // Пиксельное проявление: заранее ужатые копии, которые сменяют друг друга при получении фокуса.
-    val pixelSteps = remember(image, effect) {
-        if (effect != "pixel") emptyList() else listOf(16, 8, 4).map { k ->
+    val pixelSteps = remember(image, "pixel" in effects) {
+        if ("pixel" !in effects) emptyList() else listOf(16, 8, 4).map { k ->
             val src = image.asAndroidBitmap()
             Bitmap.createScaledBitmap(src, maxOf(1, src.width / k), maxOf(1, src.height / k), false).asImageBitmap()
         }
     }
     var pixelStage by remember { mutableIntStateOf(-1) }
-    LaunchedEffect(focused, effect) {
-        if (effect == "pixel" && focused) {
+    LaunchedEffect(focused, effects) {
+        if ("pixel" in effects && focused) {
             for (i in pixelSteps.indices) { pixelStage = i; delay(80) }
         }
         pixelStage = -1
@@ -68,9 +68,9 @@ fun CardImage(image: ImageBitmap, isBanner: Boolean, effect: String, focused: Bo
     // Глюк: короткие всплески RGB-расслоения и сдвигов полос, потом пауза.
     var glitchX by remember { mutableIntStateOf(0) }
     var glitchBars by remember { mutableStateOf(emptyList<Pair<Float, Float>>()) }
-    LaunchedEffect(focused, effect) {
+    LaunchedEffect(focused, effects) {
         glitchX = 0; glitchBars = emptyList()
-        if (effect != "glitch" || !focused) return@LaunchedEffect
+        if ("glitch" !in effects || !focused) return@LaunchedEffect
         while (isActive) {
             repeat(Random.nextInt(3, 7)) {
                 glitchX = Random.nextInt(-4, 5)
@@ -84,8 +84,8 @@ fun CardImage(image: ImageBitmap, isBanner: Boolean, effect: String, focused: Bo
 
     // ЭЛТ: светлая полоса медленно «бежит» сверху вниз.
     var crtRoll by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(focused, effect) {
-        if (effect != "crt" || !focused) return@LaunchedEffect
+    LaunchedEffect(focused, effects) {
+        if ("crt" !in effects || !focused) return@LaunchedEffect
         while (isActive) {
             crtRoll = (crtRoll + 0.012f) % 1.2f
             delay(33)
@@ -124,7 +124,7 @@ fun CardImage(image: ImageBitmap, isBanner: Boolean, effect: String, focused: Bo
         }
 
         val shift = glitchX * 1.5f.dp.toPx()
-        if (effect == "glitch" && focused && glitchX != 0) {
+        if ("glitch" in effects && focused && glitchX != 0) {
             put(img, -shift, ColorFilter.tint(Color(0xFFFF3B5C), BlendMode.Modulate), 0.75f)
             put(img, shift, ColorFilter.tint(Color(0xFF3BE8FF), BlendMode.Modulate), 0.75f)
             put(img, 0f, alpha = 0.7f)
@@ -136,7 +136,7 @@ fun CardImage(image: ImageBitmap, isBanner: Boolean, effect: String, focused: Bo
             put(img)
         }
 
-        if (effect == "crt" && focused) scanlines(crtRoll)
+        if ("crt" in effects && focused) scanlines(crtRoll)
     }
 }
 

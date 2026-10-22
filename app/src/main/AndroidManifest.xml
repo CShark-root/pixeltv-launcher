@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Разрешает запускать приложения по сценарию из фона (иначе Android 10 блокирует запуск). Выдаётся через adb appops. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
@@ -64,6 +66,19 @@
         <receiver
             android:name=".scenario.AlarmReceiver"
             android:exported="false" />
+
+        <!-- Отладка через adb: право DUMP есть у adb shell, но не у сторонних приложений. -->
+        <receiver
+            android:name=".scenario.DebugReceiver"
+            android:exported="true"
+            android:permission="android.permission.DUMP"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="com.pixelden.launcher.DUMP" />
+                <action android:name="com.pixelden.launcher.RUN" />
+                <action android:name="com.pixelden.launcher.KEYLOG" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".scenario.DenAccessibilityService"

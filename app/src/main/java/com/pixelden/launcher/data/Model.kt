@@ -22,8 +22,10 @@ data class LauncherConfig(
     val animations: Boolean = true,
     val focusScale: Int = 6,
     val pixelBorder: Int = 3,
-    /** Эффект карточки в фокусе: scale, dim, glow, glitch, pixel, crt. */
+    /** Устарело: один эффект. Переносится в [focusEffects] миграцией v4. */
     val focusEffect: String = "scale",
+    /** Эффекты карточки в фокусе, можно сочетать: scale, dim, glow, glitch, pixel, crt. */
+    val focusEffects: List<String> = listOf("scale"),
 
     // Сетка
     val columns: Int = 6,
@@ -57,7 +59,7 @@ data class LauncherConfig(
 )
 
 object Defaults {
-    const val VERSION = 3
+    const val VERSION = 4
 
     /** Пустышки обязательной предустановки и системные пакеты, которым не место на главном экране. */
     val JUNK = listOf(
@@ -76,6 +78,8 @@ object Defaults {
         if (c.defaultsVersion < 2 && c.font == "pixelify") c = c.copy(font = "tiny5")
         // v3: новые спрайты 32x32 — масштаб 4 даёт ~128 dp.
         if (c.defaultsVersion < 3) c = c.copy(mascotScale = 4)
+        // v4: эффекты фокуса стали набором — переносим выбранный раньше эффект вместе с увеличением.
+        if (c.defaultsVersion < 4) c = c.copy(focusEffects = (listOf("scale") + c.focusEffect).distinct())
         return c.copy(defaultsVersion = VERSION)
     }
 }

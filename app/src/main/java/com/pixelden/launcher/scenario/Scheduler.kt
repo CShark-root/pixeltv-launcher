@@ -60,7 +60,7 @@ object Scheduler {
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val app = PixelDenApp.instance
-        intent.getStringExtra("id")?.let { id -> app.engine.scenario(id)?.let { app.engine.run(it) } }
+        intent.getStringExtra("id")?.let { id -> app.engine.scenario(id)?.let { app.engine.run(it, "по времени") } }
         Scheduler.scheduleAll(context, app.store.current)
     }
 }
@@ -68,7 +68,7 @@ class AlarmReceiver : BroadcastReceiver() {
 class SystemEventReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val app = PixelDenApp.instance
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) app.engine.onBoot()
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED) app.engine.onBoot("BOOT_COMPLETED")
         Scheduler.scheduleAll(context, app.store.current)
     }
 }

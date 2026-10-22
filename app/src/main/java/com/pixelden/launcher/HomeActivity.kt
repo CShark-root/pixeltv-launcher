@@ -23,6 +23,7 @@ import com.pixelden.launcher.ui.HomeScreen
 import com.pixelden.launcher.ui.ScenarioEditorScreen
 import com.pixelden.launcher.ui.ScenarioListScreen
 import com.pixelden.launcher.ui.SettingsScreen
+import com.pixelden.launcher.ui.DebugLogScreen
 import com.pixelden.launcher.ui.themeFrom
 import kotlinx.coroutines.delay
 
@@ -30,6 +31,7 @@ private sealed interface Screen {
     data object Home : Screen
     data object Settings : Screen
     data object Scenarios : Screen
+    data object Log : Screen
     data class Editor(val id: String) : Screen
 }
 
@@ -44,7 +46,7 @@ class HomeActivity : ComponentActivity() {
         val app = PixelDenApp.instance
         // Лаунчер стартует первым после загрузки — дублируем boot-триггер на случай,
         // если BOOT_COMPLETED придёт раньше, чем процесс успеет подписаться.
-        if (SystemClock.elapsedRealtime() < 5 * 60_000) app.engine.onBoot()
+        if (SystemClock.elapsedRealtime() < 5 * 60_000) app.engine.onBoot("старт лаунчера")
 
         // Без этого права лаунчер не видит картинки для обоев и не сохраняет резервную копию.
         if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -74,13 +76,15 @@ class HomeActivity : ComponentActivity() {
                         onOpenSettings = { screen = Screen.Settings },
                         onOpenScenarios = { screen = Screen.Scenarios },
                     )
-                    Screen.Settings -> SettingsScreen(cfg)
+                    Screen.Settings -> SettingsScreen(cfg, onOpenLog = { screen = Screen.Log })
+                    Screen.Log -> DebugLogScreen()
                     Screen.Scenarios -> ScenarioListScreen(cfg) { id -> screen = Screen.Editor(id) }
                     is Screen.Editor -> ScenarioEditorScreen(cfg, s.id) { screen = Screen.Scenarios }
                 }
                 BackHandler(enabled = screen != Screen.Home) {
                     screen = when (screen) {
                         is Screen.Editor -> Screen.Scenarios
+                        Screen.Log -> Screen.Settings
                         else -> Screen.Home
                     }
                 }

@@ -358,6 +358,45 @@ public static class MascotGen
 
     static bool Solid(Grid g, int x, int y) { return g[x, y] != '.'; }
 
+    static Color Mix(Color a, Color b, float t)
+    {
+        return Color.FromArgb(255, (int)(a.R + (b.R - a.R) * t), (int)(a.G + (b.G - a.G) * t), (int)(a.B + (b.B - a.B) * t));
+    }
+
+    /// <summary>
+    /// Оттенки вместо одной плоской заливки. Свет падает сверху-слева:
+    /// блик по верхнему/левому краю, полутень за 2 px до правого края, тень у края, глубокая тень снизу-справа.
+    /// Все тона считаются из цвета тела — палитры менять не нужно.
+    /// </summary>
+    static Color Tone(Grid g, Pal p, char c, int x, int y)
+    {
+        Color baseC = p.C.ContainsKey(c) ? p.C[c] : p.C['o'];
+        bool fur = c == 'o' || c == 't' || c == 'a' || c == 'z' || c == 'f';
+        bool belly = c == 'w';
+        if (!fur && !belly) return baseC;
+
+        Color shade = p.C['s'];
+        bool rightEdge = !Solid(g, x + 1, y);
+        bool right2 = !rightEdge && !Solid(g, x + 2, y);
+        bool bottomEdge = !Solid(g, x, y + 1);
+        bool topEdge = !Solid(g, x, y - 1);
+        bool leftEdge = !Solid(g, x - 1, y);
+        bool rightHalf = x > OX + 10;
+
+        if (belly)
+        {
+            if (rightEdge || (rightHalf && !Solid(g, x + 1, y + 1))) return Mix(baseC, shade, 0.35f);
+            return baseC;
+        }
+        if (rightEdge && rightHalf && bottomEdge) return Mix(shade, p.Outline, 0.3f);   // глубокая тень в углу
+        if (rightEdge && rightHalf) return shade;
+        if (right2 && rightHalf) return Mix(baseC, shade, 0.5f);                          // полутень
+        if (bottomEdge && rightHalf) return Mix(baseC, shade, 0.6f);
+        if ((topEdge || leftEdge) && !rightHalf) return Mix(baseC, Color.White, 0.28f);  // блик
+        if (topEdge && rightHalf) return Mix(baseC, Color.White, 0.14f);
+        return baseC;
+    }
+
     public static Bitmap Frame(string species, Pal p, string frame)
     {
         var g = Pose(species, frame);
@@ -369,9 +408,7 @@ public static class MascotGen
                 char c = g[x, y];
                 if (c != '.')
                 {
-                    bool shadeable = c == 'o' || c == 't' || c == 'a' || c == 'z';
-                    bool shade = shadeable && !Solid(g, x + 1, y) && x > OX + 10;
-                    bmp.SetPixel(x, y, shade ? p.C['s'] : (p.C.ContainsKey(c) ? p.C[c] : p.C['o']));
+                    bmp.SetPixel(x, y, Tone(g, p, c, x, y));
                     continue;
                 }
                 bool edge = Solid(g, x + 1, y) || Solid(g, x - 1, y) || Solid(g, x, y + 1) || Solid(g, x, y - 1);

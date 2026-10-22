@@ -4,6 +4,10 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -229,6 +233,7 @@ private fun Header(
     onOpenScenarios: () -> Unit,
     onEventShown: () -> Unit,
 ) {
+    val context = LocalContext.current
     val t = LocalDen.current
     val now by produceState(Date(), cfg.showSeconds) {
         while (true) {
@@ -267,6 +272,9 @@ private fun Header(
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PButton("Сценарии", size = 14.sp, onClick = onOpenScenarios)
                 PButton("Настройки", size = 14.sp, onClick = onOpenSettings)
+                PButton("ТВ", size = 14.sp) {
+                    runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }
             }
         }
         if (cfg.mascotEnabled) {
@@ -380,18 +388,21 @@ private fun AppCard(
         value = if (banner == null) repo.icon(e.pkg) else null
     }
     val height = width * 9f / 16f
-    val scale = if (focused) t.focusScale else 1f
-    val effect = cfg.focusEffect
+    val effects = remember(cfg.focusEffects) { cfg.focusEffects.toSet() }
+    // Плавные переходы: увеличение и затемнение анимируются, а не прыгают.
+    val anim = if (t.animations) tween<Float>(180, easing = FastOutSlowInEasing) else snap()
+    val scale by animateFloatAsState(if (focused && "scale" in effects) t.focusScale else 1f, anim, label = "scale")
     // «Затемнение остальных»: пока в фокусе другая карточка, эта приглушена.
-    val dimmed = effect == "dim" && !focused && CardFocus.key != null
+    val dimmed = "dim" in effects && !focused && CardFocus.key != null
+    val cardAlpha by animateFloatAsState(if (dimmed) 0.35f else 1f, anim, label = "alpha")
 
-    Column(Modifier.width(width).graphicsLayer { alpha = if (dimmed) 0.35f else 1f }) {
+    Column(Modifier.width(width).graphicsLayer { alpha = cardAlpha }) {
         Box(
             Modifier
                 .size(width, height)
                 .focusRequester(fr)
                 .graphicsLayer { scaleX = scale; scaleY = scale }
-                .focusGlow(effect == "glow" && focused, t.colors.accent)
+                .focusGlow("glow" in effects && focused, t.colors.accent)
                 .tvClickable(
                     onFocus = {
                         focused = it
@@ -418,8 +429,8 @@ private fun AppCard(
                 val b = banner
                 val i = icon
                 when {
-                    b != null -> CardImage(b, isBanner = true, effect = effect, focused = focused, accent = t.colors.accent)
-                    i != null -> CardImage(i, isBanner = false, effect = effect, focused = focused, accent = t.colors.accent)
+                    b != null -> CardImage(b, isBanner = true, effects = effects, focused = focused, accent = t.colors.accent)
+                    i != null -> CardImage(i, isBanner = false, effects = effects, focused = focused, accent = t.colors.accent)
                     else -> PText(e.label.take(2).uppercase(), 22.sp, t.colors.dim)
                 }
             }
