@@ -53,17 +53,30 @@ import com.pixelden.launcher.scenario.DenAccessibilityService
 import com.pixelden.launcher.scenario.Templates
 import java.io.File
 
-/** Какие разделы настроек раскрыты — живёт, пока жив процесс лаунчера. */
-private var openSections by mutableStateOf(setOf<String>())
+
+/**
+ * Настройки: [page] == null — хаб с плитками разделов, иначе — страница раздела.
+ * Переходы между хабом и страницами идут через общую навигацию (с эффектом перехода), BACK возвращает на хаб.
+ */
+@Composable
+fun SettingsScreen(
+    cfg: LauncherConfig,
+    page: String?,
+    onOpenPage: (String) -> Unit,
+    onOpenLog: () -> Unit = {},
+) {
+    if (page == null) SettingsHub(cfg, onOpenPage) else SettingsPage(cfg, page, onOpenLog)
+}
 
 @Composable
-fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
+private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Unit) {
     val app = PixelDenApp.instance
     val store = app.store
     val context = LocalContext.current
     val t = LocalDen.current
     val apps by app.apps.apps.collectAsState()
     val first = rememberAutoFocus()
+    val section = SECTIONS.firstOrNull { it.key == page }
     var renameCat by remember { mutableStateOf<Category?>(null) }
     var pickWallpaper by remember { mutableStateOf(false) }
     var tvBacklight by remember { mutableStateOf(readBacklight(context)) }
@@ -71,38 +84,22 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
 
     fun set(f: (LauncherConfig) -> LauncherConfig) = store.update(f)
 
-    /** Выпадающий раздел: заголовок всегда виден, содержимое — только когда раскрыт. */
-    fun LazyListScope.fold(
-        key: String,
-        title: String,
-        summary: String? = null,
-        focus: FocusRequester? = null,
-        content: LazyListScope.() -> Unit,
-    ) {
-        val open = key in openSections
-        item(key = "fold-$key") {
-            SettingRow(
-                (if (open) "v  " else ">  ") + title,
-                value = summary,
-                focusRequester = focus,
-                arrows = false,
-                onLeft = { openSections = openSections - key },
-                onRight = { openSections = openSections + key },
-                onClick = { openSections = if (open) openSections - key else openSections + key },
-            )
-        }
-        if (open) content()
-    }
-
     Box(Modifier.fillMaxSize().background(t.colors.bg), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
-            Modifier.widthIn(max = 980.dp).fillMaxSize(),
+            // FocusRequester на списке отдаёт фокус первому пункту страницы при открытии.
+            Modifier.widthIn(max = 980.dp).fillMaxSize().focusRequester(first),
             contentPadding = PaddingValues(horizontal = 40.dp, vertical = 32.dp),
         ) {
-            item { PText("Настройки", 40.sp, t.colors.text, Modifier.padding(bottom = 4.dp)) }
-            item { PText("OK — раскрыть раздел · < > меняют значение · BACK — назад", 14.sp, t.colors.dim, Modifier.padding(bottom = 14.dp)) }
+            item { PText("Настройки  >  ${section?.title ?: page}", 15.sp, t.colors.dim) }
+            item {
+                Row(Modifier.padding(top = 4.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    section?.let { PixelIcon(it.icon, 6, t.colors.accent, t.colors.text, Modifier.padding(end = 16.dp)) }
+                    PText(section?.title ?: page, 40.sp, t.colors.text)
+                }
+            }
+            item { PText("< > меняют значение · OK — выбрать · BACK — к разделам", 14.sp, t.colors.dim, Modifier.padding(bottom = 16.dp)) }
 
-            fold("mascot", "Маскот", mascotById(cfg.mascot).name, focus = first) {
+            if (page == "mascot") {
                 item {
                     val m = mascotById(cfg.mascot)
                     SettingRow(
@@ -126,7 +123,7 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
             }
 
-            fold("look", "Внешний вид", (FONTS.firstOrNull { it.first == cfg.font } ?: FONTS.first()).second) {
+            if (page == "look") {
                 item {
                     val ids = FONTS.map { it.first }
                     SettingRow("Шрифт", (FONTS.firstOrNull { it.first == cfg.font } ?: FONTS.first()).second,
@@ -178,7 +175,7 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
             }
 
-            fold("effects", "Эффекты при наведении", "${cfg.focusEffects.size} вкл") {
+            if (page == "effects") {
                 item { PText("Можно включать несколько сразу — они сочетаются.", 14.sp, t.colors.dim, Modifier.padding(4.dp, 0.dp, 0.dp, 8.dp)) }
                 items(FOCUS_EFFECTS, key = { "fx" + it.first }) { (id, label) ->
                     ToggleRow(label.removePrefix("Только "), id in cfg.focusEffects) { on ->
@@ -187,7 +184,7 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
             }
 
-            fold("tv", "Телевизор", "подсветка ${tvBacklight}%") {
+            if (page == "tv") {
                 item {
                     SettingRow("Подсветка экрана", "$tvBacklight%",
                         hint = "Меняет подсветку панели (то же, что в настройках изображения ТВ)",
@@ -202,7 +199,7 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
             }
 
-            fold("grid", "Сетка и карточки", "${cfg.columns} колонок") {
+            if (page == "grid") {
                 item {
                     SettingRow("Колонок во «Все приложения»", "${cfg.columns}",
                         onLeft = { set { it.copy(columns = it.columns.stepIn(-1, 3..10)) } },
@@ -217,21 +214,22 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 item { ToggleRow("Баннеры приложений", cfg.preferBanners, "Выкл — везде иконки") { v -> set { it.copy(preferBanners = v) } } }
             }
 
-            fold("clock", "Часы и шапка") {
+            if (page == "clock") {
                 item { ToggleRow("24-часовой формат", cfg.clock24h) { v -> set { it.copy(clock24h = v) } } }
                 item { ToggleRow("Секунды", cfg.showSeconds) { v -> set { it.copy(showSeconds = v) } } }
                 item { ToggleRow("Дата", cfg.showDate) { v -> set { it.copy(showDate = v) } } }
                 item { ToggleRow("Приветствие при запуске", cfg.greeting) { v -> set { it.copy(greeting = v) } } }
             }
 
-            fold("rows", "Ряды главного экрана") {
+            if (page == "rows") {
                 item { ToggleRow("Избранное", cfg.showFavorites) { v -> set { it.copy(showFavorites = v) } } }
                 item { ToggleRow("Входы (HDMI, ТВ)", cfg.showInputs) { v -> set { it.copy(showInputs = v) } } }
                 item { ToggleRow("Категории", cfg.showCategories) { v -> set { it.copy(showCategories = v) } } }
                 item { ToggleRow("Все приложения", cfg.showAllApps) { v -> set { it.copy(showAllApps = v) } } }
+                item { ToggleRow("Кнопки ручных сценариев", cfg.showManualScenarios, "Сценарии с триггером «вручную» — кнопками под часами") { v -> set { it.copy(showManualScenarios = v) } } }
             }
 
-            fold("cats", "Категории", "${cfg.categories.size}") {
+            if (page == "cats") {
                 items(cfg.categories, key = { "c" + it.id }) { cat ->
                     SettingRow(
                         cat.name, "${cat.apps.size} прил.",
@@ -249,7 +247,7 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
             }
 
-            fold("hidden", "Скрытые приложения", "скрыто ${apps.count { it.pkg in cfg.hidden }} из ${apps.size}") {
+            if (page == "hidden") {
                 items(apps, key = { "h" + it.pkg }) { e ->
                     val hidden = e.pkg in cfg.hidden
                     SettingRow(
@@ -261,7 +259,7 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
             }
 
-            fold("perm", "Права и службы", if (DenAccessibilityService.instance != null) "служба работает" else "служба выключена") {
+            if (page == "perm") {
                 item {
                     val on = DenAccessibilityService.instance != null
                     SettingRow(
@@ -282,7 +280,7 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
             }
 
-            fold("debug", "Отладка", if (DebugLog.logKeys) "кнопки пишутся" else null) {
+            if (page == "debug") {
                 item { SettingRow("Открыть журнал", hint = "Запуски сценариев, их шаги, ошибки и нажатия кнопок", onClick = onOpenLog) }
                 item {
                     ToggleRow("Записывать нажатия кнопок", DebugLog.logKeys, "Нажмите кнопку пульта — в журнале будет её код и привязанные сценарии") { v ->
@@ -296,7 +294,7 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
             }
 
-            fold("backup", "Резервная копия") {
+            if (page == "backup") {
                 item {
                     SettingRow("Сохранить настройки и сценарии", hint = store.exportFile().absolutePath) {
                         toast(context, store.exportBackup().fold({ "Сохранено: ${it.name}" }, { "Ошибка: ${it.message}" }))
@@ -309,7 +307,7 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
             }
 
-            fold("about", "О программе", BuildConfig.VERSION_NAME) {
+            if (page == "about") {
                 item { SettingRow("PixelDen ${BuildConfig.VERSION_NAME}", hint = "Шрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)") }
             }
         }

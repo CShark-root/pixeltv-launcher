@@ -27,12 +27,13 @@ k 4; sleep 1; alive "назад на главный"
 # «Настройки» — вторая кнопка шапки
 k 19; k 19; k 21; k 21; k 21; k 22
 k 23; sleep 1.2; alive "открыть Настройки"; shot settings
-# раскрыть каждый раздел по очереди
+# открыть каждую плитку хаба: OK → страница → BACK → следующая плитка
 i=0
-while [ $i -lt 14 ]; do
-    k 23; sleep 0.4; alive "раскрыть раздел $i"
-    k 23; sleep 0.3          # свернуть обратно
-    k 20
+while [ $i -lt 13 ]; do
+    k 23; sleep 1.0; alive "страница раздела $i"
+    [ $i -eq 0 ] && shot settings_page
+    k 4; sleep 1.0; alive "назад на хаб ($i)"
+    if [ $((i % 3)) -eq 2 ]; then k 20; k 21; k 21; else k 22; fi
     i=$((i + 1))
 done
 shot settings_end

@@ -46,6 +46,8 @@ data class LauncherConfig(
     val showInputs: Boolean = true,
     val showCategories: Boolean = true,
     val showAllApps: Boolean = true,
+    /** Кнопки запуска ручных сценариев под шапкой. */
+    val showManualScenarios: Boolean = false,
 
     // Приложения
     val hidden: List<String> = emptyList(),

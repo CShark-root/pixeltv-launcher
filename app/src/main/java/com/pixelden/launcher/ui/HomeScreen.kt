@@ -96,7 +96,11 @@ fun HomeScreen(
     val visible = remember(apps, cfg.hidden) { apps.filter { it.pkg !in cfg.hidden } }
     val byPkg = remember(apps) { apps.associateBy { it.pkg } }
     val favorites = remember(cfg.favorites, byPkg) { cfg.favorites.mapNotNull { byPkg[it] } }
-    val manual = remember(cfg.scenarios) { cfg.scenarios.filter { it.enabled && it.trigger is Trigger.Manual } }
+    // Кнопки ручных сценариев — только если включены в настройках и только сценарии с действиями.
+    val manual = remember(cfg.scenarios, cfg.showManualScenarios) {
+        if (!cfg.showManualScenarios) emptyList()
+        else cfg.scenarios.filter { it.enabled && it.trigger is Trigger.Manual && it.actions.isNotEmpty() }
+    }
 
     fun launch(entry: AppEntry) {
         jump++

@@ -42,7 +42,7 @@ import androidx.compose.animation.AnimatedContent
 
 private sealed interface Screen {
     data object Home : Screen
-    data object Settings : Screen
+    data class Settings(val page: String? = null) : Screen
     data object Scenarios : Screen
     data object Log : Screen
     data class Editor(val id: String) : Screen
@@ -92,10 +92,14 @@ class HomeActivity : ComponentActivity() {
                         when (s) {
                             Screen.Home -> HomeScreen(
                                 cfg, idle, homeTick,
-                                onOpenSettings = { go(Screen.Settings) },
+                                onOpenSettings = { go(Screen.Settings()) },
                                 onOpenScenarios = { go(Screen.Scenarios) },
                             )
-                            Screen.Settings -> SettingsScreen(cfg, onOpenLog = { go(Screen.Log) })
+                            is Screen.Settings -> SettingsScreen(
+                                cfg, s.page,
+                                onOpenPage = { go(Screen.Settings(it)) },
+                                onOpenLog = { go(Screen.Log) },
+                            )
                             Screen.Log -> DebugLogScreen()
                             Screen.Scenarios -> ScenarioListScreen(cfg) { id -> go(Screen.Editor(id)) }
                             is Screen.Editor -> ScenarioEditorScreen(cfg, s.id) { go(Screen.Scenarios) }
@@ -107,7 +111,8 @@ class HomeActivity : ComponentActivity() {
                     go(
                         when (screen) {
                             is Screen.Editor -> Screen.Scenarios
-                            Screen.Log -> Screen.Settings
+                            Screen.Log -> Screen.Settings("debug")
+                            is Screen.Settings -> if ((screen as Screen.Settings).page != null) Screen.Settings() else Screen.Home
                             else -> Screen.Home
                         }
                     )
@@ -145,7 +150,7 @@ class HomeActivity : ComponentActivity() {
         lastInput = SystemClock.uptimeMillis()
         // Кнопка MENU на главном экране — сразу в настройки.
         if (event.keyCode == KeyEvent.KEYCODE_MENU && event.action == KeyEvent.ACTION_UP && screen == Screen.Home) {
-            go(Screen.Settings)
+            go(Screen.Settings())
             return true
         }
         return super.dispatchKeyEvent(event)
