@@ -1,8 +1,12 @@
 package com.pixelden.launcher.ui
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.media.MediaPlayer
 import android.provider.Settings
 import android.view.KeyEvent
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -15,9 +19,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -29,18 +35,32 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.pixelden.launcher.scenario.DebugLog
+import com.pixelden.launcher.system.PatternVideo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * Калибровка экрана «как в играх»: шаблон на весь экран, ← → сразу меняют настройку изображения ТВ.
- * Настройки Xiaomi лежат в global/picture_* — телевизор применяет их сам, как подсветку.
+ *
+ * Настройки Xiaomi лежат в global/picture_*. Но видеопроцессор телевизора (MediaTek) обрабатывает только
+ * видеослой — интерфейс он не трогает. Поэтому шаблон сначала рисуется в картинку, кодируется в короткий
+ * ролик и показывается видеоплеером: тогда контраст, гамма и цвет действуют на него, как на фильм.
  */
 private class CalStep(
     val key: String,
@@ -50,7 +70,9 @@ private class CalStep(
     val step: Int = 1,
     /** Для перечислений: значение → название. */
     val names: Map<Int, String>? = null,
-    val pattern: @Composable () -> Unit,
+    /** Подписи поверх видео (они в интерфейсе и видеопроцессором не меняются). */
+    val labels: (@Composable () -> Unit)? = null,
+    val draw: DrawScope.() -> Unit,
 )
 
 private val STEPS = listOf(
@@ -59,56 +81,70 @@ private val STEPS = listOf(
         "Для естественной картинки выберите «Кино». «Яркий» красивее в магазине, но искажает цвета. " +
             "Режим выбирается первым: остальные шаги настраивают именно его.",
         0..4, names = linkedMapOf(1 to "Кино", 0 to "Пользовательский", 2 to "Спорт", 3 to "Яркий", 4 to "Очень яркий"),
-    ) { OverviewPattern() },
+    ) { overview() },
     CalStep(
         "picture_backlight", "Подсветка",
         "Сколько света даёт экран. Белое поле должно быть ярким, но не слепить в вашей комнате. " +
             "Вечером обычно хватает 40–60.",
         0..100, 5,
-    ) { BacklightPattern() },
+    ) { backlight() },
     CalStep(
         "picture_brightness", "Уровень чёрного",
         "Уменьшайте, пока ЛЕВЫЙ знак не исчезнет совсем, а СРЕДНИЙ ещё едва виден. " +
             "Если средний пропал — тени будут «проваливаться», сделайте шаг назад.",
-        0..100,
-    ) { BlackPattern() },
+        0..100, labels = { Labels(listOf("не виден", "едва виден", "виден"), grey(90)) },
+    ) { blackLevel() },
     CalStep(
         "picture_contrast", "Контраст",
         "Повышайте, пока ПРАВЫЙ знак на белом не начнёт пропадать, затем шаг назад. " +
             "Все три знака должны оставаться различимыми.",
-        0..100,
-    ) { WhitePattern() },
+        0..100, labels = { Labels(listOf("виден", "виден", "едва виден"), grey(140)) },
+    ) { whiteLevel() },
     CalStep(
         "picture_gamma", "Гамма",
         "Отойдите или прищурьтесь: СРЕДНИЙ квадрат должен слиться с полосатым фоном. " +
             "Если сливается левый — выберите светлее, если правый — темнее.",
         1..3, names = linkedMapOf(1 to "Тёмная", 2 to "Стандартная", 3 to "Светлая"),
-    ) { GammaPattern() },
+        labels = { Labels(listOf("темнее", "норма", "светлее"), Color.White, top = 240, boxed = true) },
+    ) { gamma() },
     CalStep(
         "picture_color_temperature", "Цветовая температура",
         "Белый и серые полосы должны быть нейтральными, как лист бумаги, — без синевы и без желтизны. " +
             "Для фильмов правильнее «Тёплая».",
         1..3, names = linkedMapOf(1 to "Холодная", 2 to "Стандартная", 3 to "Тёплая"),
-    ) { TemperaturePattern() },
+    ) { temperature() },
     CalStep(
         "picture_saturation", "Насыщенность",
         "Цвета сочные, но лица естественные, не красные. В цветных градиентах должны оставаться " +
             "все оттенки — если яркий конец сливается в одно пятно, уменьшите.",
         0..100,
-    ) { ColorPattern() },
+    ) { colors() },
     CalStep(
         "picture_sharpness", "Чёткость",
         "Уменьшайте, пока вокруг тонких линий и букв не пропадут светлые ореолы. " +
             "Слишком мало — линии станут мыльными.",
         0..100,
-    ) { SharpnessPattern() },
+    ) { sharpness() },
 )
+
+/** Версия рисунков: поменялись шаблоны — ролики пересоздаются. */
+private const val PATTERNS_VERSION = 1
 
 private fun read(context: Context, key: String): Int? =
     runCatching { Settings.Global.getInt(context.contentResolver, key) }.getOrNull()
 
 private fun write(context: Context, key: String, v: Int): Boolean =
     runCatching { Settings.Global.putInt(context.contentResolver, key, v) }.getOrDefault(false)
+
+private fun videoFile(context: Context, s: CalStep) = File(context.cacheDir, "calib/v${PATTERNS_VERSION}_${s.key}.mp4")
+
+/** Рисует шаблон в картинку 1920×1080 — тем же кодом, что и на экране. */
+private fun render(s: CalStep): Bitmap {
+    val bmp = Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+    val canvas = androidx.compose.ui.graphics.Canvas(bmp.asImageBitmap())
+    CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, canvas, Size(1920f, 1080f)) { s.draw(this) }
+    return bmp
+}
 
 @Composable
 fun CalibrationScreen(onExit: () -> Unit) {
@@ -124,6 +160,30 @@ fun CalibrationScreen(onExit: () -> Unit) {
     val value = remember(index, tick) { read(context, step.key) }
     val fr = remember { FocusRequester() }
     LaunchedEffect(Unit) { fr.requestFocus() }
+
+    // Готовые ролики шаблонов. Пока ролика нет, шаблон рисуется интерфейсом (без обработки ТВ).
+    val videos = remember { mutableStateMapOf<String, File>() }
+    var preparing by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        // Текущий шаг — первым, остальные по порядку.
+        for (s in listOf(STEPS[0]) + STEPS.drop(1)) {
+            val f = videoFile(context, s)
+            if (!f.exists()) {
+                preparing = "Готовлю шаблоны для видеопроцессора: ${STEPS.indexOf(s) + 1}/${STEPS.size}"
+                val ok = withContext(Dispatchers.Default) {
+                    runCatching {
+                        f.parentFile?.mkdirs()
+                        val bmp = render(s)
+                        PatternVideo.encode(bmp, f)
+                        bmp.recycle()
+                    }.onFailure { DebugLog.e("калибровка: не удалось сделать ролик ${s.key}", it); f.delete() }.isSuccess
+                }
+                if (!ok) continue
+            }
+            videos[s.key] = f
+        }
+        preparing = null
+    }
 
     fun change(dir: Int) {
         val cur = value ?: return
@@ -182,7 +242,9 @@ fun CalibrationScreen(onExit: () -> Unit) {
             return@Box
         }
 
-        step.pattern()
+        val video = videos[step.key]
+        if (video != null) VideoPattern(video) else Canvas(Modifier.fillMaxSize()) { step.draw(this) }
+        step.labels?.invoke()
 
         if (panel) {
             Column(
@@ -198,10 +260,46 @@ fun CalibrationScreen(onExit: () -> Unit) {
                     PText("<  ${label(step, value)}  >", 28.sp, t.colors.accent)
                 }
                 PText(step.hint, 16.sp, t.colors.dim, Modifier.padding(top = 8.dp), maxLines = 4)
-                PText("< > менять · OK — дальше · BACK — назад · вверх/вниз — спрятать подсказку", 14.sp, t.colors.dim.copy(alpha = 0.7f), Modifier.padding(top = 10.dp))
+                PText(
+                    preparing ?: if (video == null) "Шаблон в интерфейсе — настройки кроме подсветки на нём не видны"
+                    else "< > менять · OK — дальше · BACK — назад · вверх/вниз — спрятать подсказку",
+                    14.sp, if (preparing != null || video == null) t.colors.accent else t.colors.dim.copy(alpha = 0.7f),
+                    Modifier.padding(top = 10.dp),
+                )
             }
         }
     }
+}
+
+/** Ролик шаблона по кругу на SurfaceView — его кадры идут через видеопроцессор ТВ. */
+@Composable
+private fun VideoPattern(file: File) {
+    val player = remember { MediaPlayer() }
+    DisposableEffect(Unit) { onDispose { player.release() } }
+    var surfaceReady by remember { mutableStateOf<SurfaceHolder?>(null) }
+    LaunchedEffect(file, surfaceReady) {
+        val holder = surfaceReady ?: return@LaunchedEffect
+        runCatching {
+            player.reset()
+            player.setDataSource(file.path)
+            player.setDisplay(holder)
+            player.isLooping = true
+            player.prepare()
+            player.start()
+        }.onFailure { DebugLog.e("калибровка: ролик ${file.name} не играет", it) }
+    }
+    AndroidView(
+        factory = { ctx ->
+            SurfaceView(ctx).apply {
+                holder.addCallback(object : SurfaceHolder.Callback {
+                    override fun surfaceCreated(h: SurfaceHolder) { surfaceReady = h }
+                    override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, hh: Int) {}
+                    override fun surfaceDestroyed(h: SurfaceHolder) { surfaceReady = null; runCatching { player.reset() } }
+                })
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 private fun label(s: CalStep, v: Int?): String = when {
@@ -210,33 +308,19 @@ private fun label(s: CalStep, v: Int?): String = when {
     else -> v.toString()
 }
 
-// ------------------------------------------------------------------ шаблоны
+@Composable
+private fun Labels(names: List<String>, color: Color, top: Int = 212, boxed: Boolean = false) {
+    Row(Modifier.fillMaxWidth().padding(top = top.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        names.forEach { n ->
+            if (boxed) Box(Modifier.background(Color.Black).padding(6.dp)) { PText(n, 18.sp, color) }
+            else PText(n, 18.sp, color)
+        }
+    }
+}
+
+// ------------------------------------------------------------------ шаблоны (рисуются в 1920×1080)
 
 private fun grey(v: Int) = Color(v / 255f, v / 255f, v / 255f)
-
-@Composable
-private fun Label(text: String, color: Color, modifier: Modifier = Modifier) = PText(text, 18.sp, color, modifier)
-
-/** Обзор: цветные полосы, серая шкала и телесные тона. */
-@Composable
-private fun OverviewPattern() {
-    Canvas(Modifier.fillMaxSize()) {
-        val bars = listOf(0xFFBFBFBF, 0xFFBFBF00, 0xFF00BFBF, 0xFF00BF00, 0xFFBF00BF, 0xFFBF0000, 0xFF0000BF)
-        val w = size.width / bars.size
-        bars.forEachIndexed { i, c -> drawRect(Color(c), Offset(i * w, 0f), Size(w + 1, size.height * 0.45f)) }
-        greyRamp(0f, size.height * 0.45f, size.width, size.height * 0.12f, 16)
-        skin(size.height * 0.57f, size.height * 0.15f)
-    }
-}
-
-/** Ступени серого 0…100% и белое поле. */
-@Composable
-private fun BacklightPattern() {
-    Canvas(Modifier.fillMaxSize()) {
-        drawRect(Color.White, Offset(size.width * 0.3f, size.height * 0.08f), Size(size.width * 0.4f, size.height * 0.3f))
-        greyRamp(0f, size.height * 0.45f, size.width, size.height * 0.2f, 11)
-    }
-}
 
 private fun DrawScope.greyRamp(x: Float, y: Float, w: Float, h: Float, steps: Int) {
     val sw = w / steps
@@ -249,46 +333,41 @@ private fun DrawScope.skin(y: Float, h: Float) {
     tones.forEachIndexed { i, c -> drawRect(Color(c), Offset(i * w, y), Size(w + 1, h)) }
 }
 
-/** Уровень чёрного: три знака на чистом чёрном и ступени 0…32. */
-@Composable
-private fun BlackPattern() {
-    val levels = listOf(4 to "не виден", 10 to "едва виден", 22 to "виден")
-    Box(Modifier.fillMaxSize()) {
-        Canvas(Modifier.fillMaxSize()) {
-            val s = size.height * 0.26f
-            levels.forEachIndexed { i, (v, _) ->
-                val cx = size.width * (0.25f + i * 0.25f)
-                drawSymbol(grey(v), Offset(cx - s / 2, size.height * 0.12f), s)
-            }
-            val n = 17
-            val sw = size.width * 0.8f / n
-            for (i in 0 until n) drawRect(grey(i * 2), Offset(size.width * 0.1f + i * sw, size.height * 0.5f), Size(sw - 4, size.height * 0.08f))
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 212.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            levels.forEach { (_, n) -> Label(n, grey(70)) }
-        }
-    }
+/** Обзор: цветные полосы, серая шкала и телесные тона. */
+private fun DrawScope.overview() {
+    drawRect(Color.Black)
+    val bars = listOf(0xFFBFBFBF, 0xFFBFBF00, 0xFF00BFBF, 0xFF00BF00, 0xFFBF00BF, 0xFFBF0000, 0xFF0000BF)
+    val w = size.width / bars.size
+    bars.forEachIndexed { i, c -> drawRect(Color(c), Offset(i * w, 0f), Size(w + 1, size.height * 0.45f)) }
+    greyRamp(0f, size.height * 0.45f, size.width, size.height * 0.12f, 16)
+    skin(size.height * 0.57f, size.height * 0.15f)
 }
 
-/** Контраст: три знака на белом. */
-@Composable
-private fun WhitePattern() {
-    val levels = listOf(225 to "виден", 240 to "виден", 250 to "едва виден")
-    Box(Modifier.fillMaxSize().background(Color.White)) {
-        Canvas(Modifier.fillMaxSize()) {
-            val s = size.height * 0.26f
-            levels.forEachIndexed { i, (v, _) ->
-                val cx = size.width * (0.25f + i * 0.25f)
-                drawSymbol(grey(v), Offset(cx - s / 2, size.height * 0.12f), s)
-            }
-            val n = 16
-            val sw = size.width * 0.8f / n
-            for (i in 0 until n) drawRect(grey(225 + i * 2), Offset(size.width * 0.1f + i * sw, size.height * 0.5f), Size(sw - 4, size.height * 0.08f))
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 212.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            levels.forEach { (_, n) -> Label(n, grey(140)) }
-        }
-    }
+/** Ступени серого 0…100% и белое поле. */
+private fun DrawScope.backlight() {
+    drawRect(Color.Black)
+    drawRect(Color.White, Offset(size.width * 0.3f, size.height * 0.08f), Size(size.width * 0.4f, size.height * 0.3f))
+    greyRamp(0f, size.height * 0.45f, size.width, size.height * 0.2f, 11)
+}
+
+/** Уровень чёрного: три знака на чистом чёрном и ступени 0…32. */
+private fun DrawScope.blackLevel() {
+    drawRect(Color.Black)
+    val s = size.height * 0.26f
+    listOf(4, 10, 22).forEachIndexed { i, v -> drawSymbol(grey(v), Offset(size.width * (0.25f + i * 0.25f) - s / 2, size.height * 0.12f), s) }
+    val n = 17
+    val sw = size.width * 0.8f / n
+    for (i in 0 until n) drawRect(grey(i * 2), Offset(size.width * 0.1f + i * sw, size.height * 0.5f), Size(sw - 4, size.height * 0.08f))
+}
+
+/** Контраст: три знака на белом и ступени 225…255. */
+private fun DrawScope.whiteLevel() {
+    drawRect(Color.White)
+    val s = size.height * 0.26f
+    listOf(225, 240, 250).forEachIndexed { i, v -> drawSymbol(grey(v), Offset(size.width * (0.25f + i * 0.25f) - s / 2, size.height * 0.12f), s) }
+    val n = 16
+    val sw = size.width * 0.8f / n
+    for (i in 0 until n) drawRect(grey(225 + i * 2), Offset(size.width * 0.1f + i * sw, size.height * 0.5f), Size(sw - 4, size.height * 0.08f))
 }
 
 /** Пиксельный знак-котик для шаблонов чёрного и белого. */
@@ -299,75 +378,51 @@ private fun DrawScope.drawSymbol(c: Color, at: Offset, s: Float) {
 }
 
 /** Гамма: фон из чёрно-белых строк через пиксель (оптически 50%) и три сплошных серых. */
-@Composable
-private fun GammaPattern() {
-    val greys = listOf(170 to "темнее", 186 to "норма 2.2", 202 to "светлее")
-    Box(Modifier.fillMaxSize()) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawRect(Color.Black)
-            var y = 0f
-            while (y < size.height) { drawRect(Color.White, Offset(0f, y), Size(size.width, 1f)); y += 2f }
-            val s = size.height * 0.28f
-            greys.forEachIndexed { i, (v, _) ->
-                drawRect(grey(v), Offset(size.width * (0.25f + i * 0.25f) - s / 2, size.height * 0.15f), Size(s, s))
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 240.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            greys.forEach { (_, n) -> Box(Modifier.background(Color.Black).padding(6.dp)) { Label(n, Color.White) } }
-        }
-    }
+private fun DrawScope.gamma() {
+    drawRect(Color.Black)
+    var y = 0f
+    while (y < size.height) { drawRect(Color.White, Offset(0f, y), Size(size.width, 1f)); y += 2f }
+    val s = size.height * 0.28f
+    listOf(170, 186, 202).forEachIndexed { i, v -> drawRect(grey(v), Offset(size.width * (0.25f + i * 0.25f) - s / 2, size.height * 0.15f), Size(s, s)) }
 }
 
-/** Цветовая температура: белое поле и плавная серая шкала. */
-@Composable
-private fun TemperaturePattern() {
-    Canvas(Modifier.fillMaxSize()) {
-        drawRect(Color.White, Offset(0f, 0f), Size(size.width, size.height * 0.3f))
-        drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.White)), Offset(0f, size.height * 0.3f), Size(size.width, size.height * 0.2f))
-        greyRamp(0f, size.height * 0.5f, size.width, size.height * 0.15f, 11)
-    }
+/** Цветовая температура: белое поле и серые шкалы. */
+private fun DrawScope.temperature() {
+    drawRect(Color.Black)
+    drawRect(Color.White, Offset(0f, 0f), Size(size.width, size.height * 0.3f))
+    drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.White)), Offset(0f, size.height * 0.3f), Size(size.width, size.height * 0.2f))
+    greyRamp(0f, size.height * 0.5f, size.width, size.height * 0.15f, 11)
 }
 
-/** Насыщенность: градиенты основных цветов, телесные тона и полосы. */
-@Composable
-private fun ColorPattern() {
-    Canvas(Modifier.fillMaxSize()) {
-        val colors = listOf(Color.Red, Color.Green, Color.Blue, Color.Cyan, Color.Magenta, Color.Yellow)
-        val h = size.height * 0.08f
-        colors.forEachIndexed { i, c ->
-            drawRect(Brush.horizontalGradient(listOf(Color.Black, c, Color.White)), Offset(0f, i * h), Size(size.width, h))
-        }
-        skin(h * 6, size.height * 0.14f)
-    }
+/** Насыщенность: градиенты основных цветов и телесные тона. */
+private fun DrawScope.colors() {
+    drawRect(Color.Black)
+    val list = listOf(Color.Red, Color.Green, Color.Blue, Color.Cyan, Color.Magenta, Color.Yellow)
+    val h = size.height * 0.08f
+    list.forEachIndexed { i, c -> drawRect(Brush.horizontalGradient(listOf(Color.Black, c, Color.White)), Offset(0f, i * h), Size(size.width, h)) }
+    skin(h * 6, size.height * 0.14f)
 }
 
-/** Чёткость: сетка в пиксель, тонкие линии и мелкие знаки. */
-@Composable
-private fun SharpnessPattern() {
-    Box(Modifier.fillMaxSize().background(grey(128))) {
-        Canvas(Modifier.fillMaxSize()) {
-            val top = size.height * 0.62f
-            // Вертикальные и горизонтальные линии толщиной 1, 2 и 3 пикселя.
-            listOf(1f, 2f, 3f).forEachIndexed { k, w ->
-                val x0 = size.width * (0.05f + k * 0.32f)
-                var x = x0
-                while (x < x0 + size.width * 0.12f) { drawRect(Color.White, Offset(x, size.height * 0.05f), Size(w, top * 0.4f)); x += w * 4 }
-                var y = size.height * 0.05f
-                while (y < size.height * 0.05f + top * 0.4f) { drawRect(Color.Black, Offset(x0 + size.width * 0.14f, y), Size(size.width * 0.12f, w)); y += w * 4 }
-            }
-            // Шахматка в пиксель.
-            val cx = size.width * 0.35f
-            val cy = size.height * 0.36f
-            for (yy in 0 until 120) for (xx in 0 until 160 step 2) {
-                val off = if (yy % 2 == 0) 0 else 1
-                drawRect(Color.Black, Offset(cx + xx + off, cy + yy), Size(1f, 1f))
-            }
-            // Тонкие круги.
-            for (r in 20..110 step 18) drawCircle(Color.White, r.toFloat(), Offset(size.width * 0.75f, size.height * 0.42f), style = androidx.compose.ui.graphics.drawscope.Stroke(1f))
-        }
-        Column(Modifier.padding(start = 80.dp, top = 300.dp)) {
-            PText("Мелкий текст: съешь же ещё этих мягких французских булок", 12.sp, Color.White)
-            PText("Мелкий текст: съешь же ещё этих мягких французских булок", 12.sp, Color.Black)
-        }
+/** Чёткость: линии в 1–3 пикселя, шахматка в пиксель, тонкие круги и мелкий текст. */
+private fun DrawScope.sharpness() {
+    drawRect(grey(128))
+    val top = size.height * 0.62f
+    listOf(1f, 2f, 3f).forEachIndexed { k, w ->
+        val x0 = size.width * (0.05f + k * 0.32f)
+        var x = x0
+        while (x < x0 + size.width * 0.12f) { drawRect(Color.White, Offset(x, size.height * 0.05f), Size(w, top * 0.4f)); x += w * 4 }
+        var y = size.height * 0.05f
+        while (y < size.height * 0.05f + top * 0.4f) { drawRect(Color.Black, Offset(x0 + size.width * 0.14f, y), Size(size.width * 0.12f, w)); y += w * 4 }
+    }
+    val cx = size.width * 0.35f
+    val cy = size.height * 0.36f
+    for (yy in 0 until 120) for (xx in 0 until 160 step 2) drawRect(Color.Black, Offset(cx + xx + yy % 2, cy + yy), Size(1f, 1f))
+    for (r in 20..110 step 18) drawCircle(Color.White, r.toFloat(), Offset(size.width * 0.75f, size.height * 0.42f), style = Stroke(1f))
+    val paint = android.graphics.Paint().apply { textSize = 22f; isAntiAlias = true }
+    drawContext.canvas.nativeCanvas.apply {
+        paint.color = android.graphics.Color.WHITE
+        drawText("Мелкий текст: съешь же ещё этих мягких французских булок", 160f, 640f, paint)
+        paint.color = android.graphics.Color.BLACK
+        drawText("Мелкий текст: съешь же ещё этих мягких французских булок", 160f, 680f, paint)
     }
 }
