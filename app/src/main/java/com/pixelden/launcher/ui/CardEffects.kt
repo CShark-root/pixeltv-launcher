@@ -87,8 +87,8 @@ fun CardImage(image: ImageBitmap, isBanner: Boolean, effects: Set<String>, focus
     LaunchedEffect(focused, effects) {
         if ("crt" !in effects || !focused) return@LaunchedEffect
         while (isActive) {
-            crtRoll = (crtRoll + 0.012f) % 1.2f
-            delay(33)
+            crtRoll = (crtRoll + 0.024f) % 1.2f
+            delay(66)
         }
     }
 

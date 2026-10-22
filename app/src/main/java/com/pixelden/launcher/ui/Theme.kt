@@ -126,7 +126,7 @@ val LocalDen = staticCompositionLocalOf { themeFrom(LauncherConfig()) }
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun DenThemeProvider(theme: DenTheme, content: @Composable () -> Unit) {
-    val scroll = remember(theme.animations) { EdgeScrollSpec(edge = 0.18f, animate = theme.animations) }
+    val scroll = remember(theme.animations) { EdgeScrollSpec(animate = theme.animations) }
     CompositionLocalProvider(
         LocalDen provides theme,
         androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides scroll,
@@ -153,18 +153,21 @@ fun PText(
 }
 
 /** Рамка с «ступенчатыми» пиксельными углами. */
-fun DrawScope.pixelFrame(color: Color, fill: Color?, step: Float) {
-    val w = size.width
-    val h = size.height
+/** [inflate] > 0 рисует рамку снаружи границ на это расстояние (для анимации «рамка сжимается на карточку»). */
+fun DrawScope.pixelFrame(color: Color, fill: Color?, step: Float, inflate: Float = 0f) {
+    val x0 = -inflate
+    val y0 = -inflate
+    val w = size.width + 2 * inflate
+    val h = size.height + 2 * inflate
     if (fill != null) {
-        drawRect(fill, Offset(step, 0f), Size(w - 2 * step, h))
-        drawRect(fill, Offset(0f, step), Size(w, h - 2 * step))
+        drawRect(fill, Offset(x0 + step, y0), Size(w - 2 * step, h))
+        drawRect(fill, Offset(x0, y0 + step), Size(w, h - 2 * step))
     }
     if (color.alpha > 0f) {
-        drawRect(color, Offset(step, 0f), Size(w - 2 * step, step))
-        drawRect(color, Offset(step, h - step), Size(w - 2 * step, step))
-        drawRect(color, Offset(0f, step), Size(step, h - 2 * step))
-        drawRect(color, Offset(w - step, step), Size(step, h - 2 * step))
+        drawRect(color, Offset(x0 + step, y0), Size(w - 2 * step, step))
+        drawRect(color, Offset(x0 + step, y0 + h - step), Size(w - 2 * step, step))
+        drawRect(color, Offset(x0, y0 + step), Size(step, h - 2 * step))
+        drawRect(color, Offset(x0 + w - step, y0 + step), Size(step, h - 2 * step))
     }
 }
 

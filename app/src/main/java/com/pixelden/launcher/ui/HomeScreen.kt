@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -38,6 +39,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
@@ -100,6 +104,15 @@ fun HomeScreen(
     }
 
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    var topJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // Шапка и избранное — «верх»: фокус на них возвращает экран к самому началу.
+    // Запускаем чуть позже стандартной прокрутки к элементу, чтобы она нас не перебила.
+    fun scrollTop() {
+        if (listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) return
+        topJob?.cancel()
+        topJob = scope.launch { delay(60); listState.animateScrollToItem(0) }
+    }
     var nonce by remember { mutableStateOf(0) }
     // Ключ фокуса + счётчик: повторный запрос на ту же карточку тоже срабатывает.
     fun focusOn(key: String?) { if (key != null) restoreKey = "$key#${nonce++}" }
@@ -127,7 +140,8 @@ fun HomeScreen(
             contentPadding = PaddingValues(start = 56.dp, end = 56.dp, top = 36.dp, bottom = 48.dp),
         ) {
             item {
-                Header(cfg, idle, focusedLabel, event, jump, onOpenSettings, onOpenScenarios, onEventShown = { app.engine.clearEvent() })
+                Header(cfg, idle, focusedLabel, event, jump, onOpenSettings, onOpenScenarios, onEventShown = { app.engine.clearEvent() },
+                    onTopFocus = ::scrollTop)
             }
             if (manual.isNotEmpty()) {
                 item {
@@ -143,7 +157,7 @@ fun HomeScreen(
                         PText("Удерживайте OK на приложении → «В избранное»", 14.sp, t.colors.dim, Modifier.padding(bottom = 18.dp))
                     } else {
                         AppRow(favorites, "fav", cfg, cfg.cardSize * 1.9f, restoreKey,
-                            onFocus = { e, k -> focusedLabel = labelOf(cfg, e); lastFocusKey = k },
+                            onFocus = { e, k -> focusedLabel = labelOf(cfg, e); lastFocusKey = k; scrollTop() },
                             onClick = ::launch, onLong = { menuFor = it })
                     }
                 }
@@ -217,7 +231,8 @@ private fun Wallpaper(cfg: LauncherConfig) {
         }
     }
     img?.let {
-        Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // Отдельный слой: обои не перерисовываются при каждом сдвиге списка.
+        Image(it, null, Modifier.fillMaxSize().graphicsLayer(), contentScale = ContentScale.Crop)
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = cfg.wallpaperDim / 100f)))
     }
 }
@@ -232,6 +247,8 @@ private fun Header(
     onOpenSettings: () -> Unit,
     onOpenScenarios: () -> Unit,
     onEventShown: () -> Unit,
+    /** Фокус пришёл на кнопки шапки — вернуть экран к самому верху. */
+    onTopFocus: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val t = LocalDen.current
@@ -269,7 +286,7 @@ private fun Header(
             PText(timeFmt.format(now), 64.sp, t.colors.text)
             if (cfg.showDate) PText(dateFmt.format(now).replaceFirstChar { it.uppercase() }, 18.sp, t.colors.dim)
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.onFocusChanged { if (it.hasFocus) onTopFocus() }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PButton("Сценарии", size = 14.sp, onClick = onOpenScenarios)
                 PButton("Настройки", size = 14.sp, onClick = onOpenSettings)
                 PButton("ТВ", size = 14.sp) {
@@ -395,13 +412,28 @@ private fun AppCard(
     // «Затемнение остальных»: пока в фокусе другая карточка, эта приглушена.
     val dimmed = "dim" in effects && !focused && CardFocus.key != null
     val cardAlpha by animateFloatAsState(if (dimmed) 0.35f else 1f, anim, label = "alpha")
+    // Рамка фокуса «прилетает»: сжимается на карточку снаружи и проявляется.
+    val frameP by animateFloatAsState(if (focused) 1f else 0f, if (t.animations) tween(200, easing = FastOutSlowInEasing) else snap(), label = "frame")
+    // Запуск: короткая вспышка и лёгкое увеличение, приложение открывается в конце вспышки.
+    val launchP = remember { Animatable(0f) }
+    val cardScope = rememberCoroutineScope()
+    fun launchWithFlash() {
+        if (!t.animations) { onClick(); return }
+        cardScope.launch {
+            launchP.snapTo(0f)
+            launchP.animateTo(1f, tween(170, easing = FastOutSlowInEasing))
+            onClick()
+            delay(300)
+            launchP.snapTo(0f)
+        }
+    }
 
     Column(Modifier.width(width).graphicsLayer { alpha = cardAlpha }) {
         Box(
             Modifier
                 .size(width, height)
                 .focusRequester(fr)
-                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .graphicsLayer { val k = scale * (1f + 0.08f * launchP.value); scaleX = k; scaleY = k }
                 .focusGlow("glow" in effects && focused, t.colors.accent)
                 .tvClickable(
                     onFocus = {
@@ -409,13 +441,15 @@ private fun AppCard(
                         if (it) { CardFocus.key = key; onFocused() } else if (CardFocus.key == key) CardFocus.key = null
                     },
                     onLongClick = onLong,
-                    onClick = onClick,
+                    onClick = { launchWithFlash() },
                 )
                 .pixelBox(Color.Transparent, t.colors.surface, t.border)
                 // Рамка фокуса рисуется ПОВЕРХ картинки — так её ничто не перекроет.
                 .drawWithContent {
                     drawContent()
-                    if (focused) pixelFrame(t.colors.accent, null, t.border.dp.toPx())
+                    if (frameP > 0.01f) pixelFrame(t.colors.accent.copy(alpha = frameP), null, t.border.dp.toPx(), inflate = (1f - frameP) * 10.dp.toPx())
+                    val p = launchP.value
+                    if (p > 0f) drawRect(Color.White.copy(alpha = 0.55f * kotlin.math.sin(Math.PI.toFloat() * p)))
                 },
             contentAlignment = Alignment.Center,
         ) {

@@ -161,6 +161,12 @@ fun SettingsScreen(cfg: LauncherConfig, onOpenLog: () -> Unit = {}) {
                 }
                 item { ToggleRow("Анимации", cfg.animations) { v -> set { it.copy(animations = v) } } }
                 item {
+                    val ids = SCREEN_TRANSITIONS.map { it.first }
+                    SettingRow("Переход между экранами", (SCREEN_TRANSITIONS.firstOrNull { it.first == cfg.screenTransition } ?: SCREEN_TRANSITIONS.first()).second,
+                        onLeft = { set { it.copy(screenTransition = ids.cycle(it.screenTransition, -1)) } },
+                        onRight = { set { it.copy(screenTransition = ids.cycle(it.screenTransition, 1)) } })
+                }
+                item {
                     SettingRow("Увеличение в фокусе", "${cfg.focusScale}%",
                         onLeft = { set { it.copy(focusScale = it.focusScale.stepIn(-1, 0..15)) } },
                         onRight = { set { it.copy(focusScale = it.focusScale.stepIn(1, 0..15)) } })

@@ -26,6 +26,18 @@ import com.pixelden.launcher.ui.SettingsScreen
 import com.pixelden.launcher.ui.DebugLogScreen
 import com.pixelden.launcher.ui.themeFrom
 import kotlinx.coroutines.delay
+import com.pixelden.launcher.ui.softTransition
+import com.pixelden.launcher.ui.PixelCoverOverlay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.AnimatedContent
 
 private sealed interface Screen {
     data object Home : Screen
@@ -70,23 +82,34 @@ class HomeActivity : ComponentActivity() {
             LaunchedEffect(lastInput) { if (idle) idle = false }
 
             DenThemeProvider(theme) {
-                when (val s = screen) {
-                    Screen.Home -> HomeScreen(
-                        cfg, idle, homeTick,
-                        onOpenSettings = { screen = Screen.Settings },
-                        onOpenScenarios = { screen = Screen.Scenarios },
-                    )
-                    Screen.Settings -> SettingsScreen(cfg, onOpenLog = { screen = Screen.Log })
-                    Screen.Log -> DebugLogScreen()
-                    Screen.Scenarios -> ScenarioListScreen(cfg) { id -> screen = Screen.Editor(id) }
-                    is Screen.Editor -> ScenarioEditorScreen(cfg, s.id) { screen = Screen.Scenarios }
+                Box(Modifier.fillMaxSize()) {
+                    AnimatedContent(
+                        targetState = screen,
+                        transitionSpec = { softTransition(if (theme.animations) cfg.screenTransition else "none") },
+                        label = "screen",
+                    ) { s ->
+                        when (s) {
+                            Screen.Home -> HomeScreen(
+                                cfg, idle, homeTick,
+                                onOpenSettings = { go(Screen.Settings) },
+                                onOpenScenarios = { go(Screen.Scenarios) },
+                            )
+                            Screen.Settings -> SettingsScreen(cfg, onOpenLog = { go(Screen.Log) })
+                            Screen.Log -> DebugLogScreen()
+                            Screen.Scenarios -> ScenarioListScreen(cfg) { id -> go(Screen.Editor(id)) }
+                            is Screen.Editor -> ScenarioEditorScreen(cfg, s.id) { go(Screen.Scenarios) }
+                        }
+                    }
+                    PixelCoverOverlay(cover.value, coverSeed, theme.colors.bg)
                 }
                 BackHandler(enabled = screen != Screen.Home) {
-                    screen = when (screen) {
-                        is Screen.Editor -> Screen.Scenarios
-                        Screen.Log -> Screen.Settings
-                        else -> Screen.Home
-                    }
+                    go(
+                        when (screen) {
+                            is Screen.Editor -> Screen.Scenarios
+                            Screen.Log -> Screen.Settings
+                            else -> Screen.Home
+                        }
+                    )
                 }
                 // На главном экране BACK ничего не делает (а не закрывает лаунчер).
                 BackHandler(enabled = screen == Screen.Home) {}
@@ -94,11 +117,33 @@ class HomeActivity : ComponentActivity() {
         }
     }
 
+    // ------------------------------------------------------------------ переходы между экранами
+
+    private val cover = Animatable(0f)
+    private var coverSeed by mutableIntStateOf(0)
+    private var navJob: Job? = null
+
+    /** Сменить экран с выбранным переходом: «пиксели» — шторка из квадратов, «растворение» — через AnimatedContent. */
+    private fun go(target: Screen) {
+        if (target == screen) return
+        val cfg = PixelDenApp.instance.store.current
+        if (!cfg.animations || cfg.screenTransition != "pixels") { screen = target; return }
+        navJob?.cancel()
+        navJob = lifecycleScope.launch {
+            coverSeed++
+            cover.animateTo(1f, tween(170, easing = LinearEasing))
+            screen = target
+            delay(30)
+            coverSeed++
+            cover.animateTo(0f, tween(210, easing = LinearEasing))
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         lastInput = SystemClock.uptimeMillis()
         // Кнопка MENU на главном экране — сразу в настройки.
         if (event.keyCode == KeyEvent.KEYCODE_MENU && event.action == KeyEvent.ACTION_UP && screen == Screen.Home) {
-            screen = Screen.Settings
+            go(Screen.Settings)
             return true
         }
         return super.dispatchKeyEvent(event)
@@ -108,7 +153,7 @@ class HomeActivity : ComponentActivity() {
         super.onNewIntent(intent)
         // Повторное нажатие HOME, когда лаунчер уже на экране: вернуться на главный и к началу.
         if (Intent.ACTION_MAIN == intent.action) {
-            screen = Screen.Home
+            go(Screen.Home)
             homeTick++
         }
     }

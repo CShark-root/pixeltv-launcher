@@ -26,6 +26,8 @@ data class LauncherConfig(
     val focusEffect: String = "scale",
     /** Эффекты карточки в фокусе, можно сочетать: scale, dim, glow, glitch, pixel, crt. */
     val focusEffects: List<String> = listOf("scale"),
+    /** Переход между экранами лаунчера: pixels, fade, none. */
+    val screenTransition: String = "pixels",
 
     // Сетка
     val columns: Int = 6,
