@@ -15,6 +15,7 @@
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <!-- Разрешает запускать приложения по сценарию из фона (иначе Android 10 блокирует запуск). Выдаётся через adb appops. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
@@ -26,7 +27,7 @@
         android:allowBackup="true"
         android:banner="@drawable/banner"
         android:icon="@drawable/banner"
-        android:label="PixelDen"
+        android:label="PixelTv"
         android:requestLegacyExternalStorage="true"
         android:supportsRtl="false"
         android:theme="@style/Theme.PixelDen">
@@ -77,13 +78,15 @@
                 <action android:name="com.pixelden.launcher.DUMP" />
                 <action android:name="com.pixelden.launcher.RUN" />
                 <action android:name="com.pixelden.launcher.KEYLOG" />
+                <action android:name="com.pixelden.launcher.REFRESH" />
+                <action android:name="com.pixelden.launcher.CITY" />
             </intent-filter>
         </receiver>
 
         <service
             android:name=".scenario.DenAccessibilityService"
             android:exported="false"
-            android:label="PixelDen: кнопки и сценарии"
+            android:label="PixelTv: кнопки и сценарии"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

@@ -67,6 +67,9 @@ val SECTIONS = listOf(
     Section("effects", "Эффекты наведения", listOf(
         "....#....", "....#....", "..#.#.#..", "...###...", "#########", "...###...", "..#.#.#..", "....#....", "....#....",
     )) { s -> s.cfg.focusEffects.mapNotNull { id -> FOCUS_EFFECTS.firstOrNull { it.first == id }?.second?.removePrefix("Только ") }.joinToString(", ").ifEmpty { "нет" } },
+    Section("weather", "Погода", listOf(
+        ".y.y.....", "..yyy....", "yyyyy....", "..y#####.", ".#++++++#", "#++++++++", "#++++++++", ".########", ".........",
+    )) { it.cfg.weatherCity?.let { c -> if (it.cfg.yandexWeatherKey.isBlank()) "$c · Open-Meteo" else "$c · Яндекс" } ?: "город не выбран" },
     Section("tv", "Телевизор", listOf(
         "..+...+..", "...+.+...", "#########", "#+++++++#", "#+++++++#", "#+++++++#", "#########", "...#.#...", "..#####..",
     )) { "подсветка ${it.backlight}%" },
@@ -99,20 +102,20 @@ val SECTIONS = listOf(
     )) { "pixelden-backup.json" },
     Section("about", "О программе", listOf(
         "..#####..", ".#+++++#.", "#+++#+++#", "#+++++++#", "#+++#+++#", "#+++#+++#", ".#++#++#.", "..#####..", ".........",
-    )) { "PixelDen ${BuildConfig.VERSION_NAME}" },
+    )) { "PixelTv ${BuildConfig.VERSION_NAME}" },
 )
 
 /** Последняя открытая страница — на неё вернётся фокус при возврате на хаб. */
 private var lastSection: String? = null
 
 @Composable
-fun PixelIcon(grid: List<String>, pixel: Int, accent: Color, light: Color, modifier: Modifier = Modifier) {
+fun PixelIcon(grid: List<String>, pixel: Int, accent: Color, light: Color, modifier: Modifier = Modifier, sun: Color = Color(0xFFFFD25A)) {
     Canvas(modifier.size((9 * pixel).dp)) {
         // Целое число экранных точек на пиксель иконки — без просветов-сетки между пикселями.
         val p = pixel.dp.roundToPx().toFloat()
         grid.forEachIndexed { y, row ->
             row.forEachIndexed { x, ch ->
-                val c = when (ch) { '#' -> accent; '+' -> light; else -> null } ?: return@forEachIndexed
+                val c = when (ch) { '#' -> accent; '+' -> light; 'y' -> sun; else -> null } ?: return@forEachIndexed
                 drawRect(c, Offset(x * p, y * p), Size(p, p))
             }
         }

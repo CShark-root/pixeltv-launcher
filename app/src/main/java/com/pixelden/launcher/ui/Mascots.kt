@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
@@ -122,6 +123,9 @@ fun MascotSprite(
     val sheet = remember(mascot.id) { SheetCache.get(context, mascot.id) }
     var pose by remember(mascot.id) { mutableStateOf(Pose(x = roam)) }
     var busy by remember { mutableStateOf(false) }   // прыжок перебивает остальное
+    var lastMood by remember { mutableStateOf(mood) }
+    var wokeUp by remember { mutableStateOf(false) }
+    if (lastMood != mood) { if (lastMood == MascotMood.SLEEP) wokeUp = true; lastMood = mood }
 
     LaunchedEffect(mascot.id, mood, animate, roam, talking) {
         if (!animate) { pose = pose.copy(frame = if (mood == MascotMood.SLEEP) "sleep0" else "sit0", dy = 0, zs = emptyList()); return@LaunchedEffect }
@@ -142,21 +146,31 @@ fun MascotSprite(
                 if (!busy) { pose = pose.copy(frame = "lookblink"); delay(260) }
             }
         }
+        // Проснулся — удивлённо подскочить, потом сесть.
+        if (wokeUp) {
+            wokeUp = false
+            pose = pose.copy(frame = "surprise", zs = emptyList()); delay(650)
+            pose = pose.copy(frame = "sit0")
+        }
         coroutineScope {
             // Главный цикл поведения: сидеть → (посмотреть на зрителя | пройтись | помечтать) → …
             launch {
                 pose = pose.copy(zs = emptyList())
                 while (isActive) {
                     sitFor(Random.nextLong(2500, 6000), { busy }) { pose = pose.copy(frame = it) }
-                    when (Random.nextInt(10)) {
-                        in 0..3 -> lookAtViewer({ busy }) { pose = pose.copy(frame = it) }
-                        in 4..7 -> if (roam > 0) {
-                            val target = Random.nextInt(0, roam + 1)
-                            walkTo(target, { pose }, { busy }) { pose = it }
-                        }
-                        else -> { // радостно поёрзать
-                            if (!busy) { pose = pose.copy(frame = "happy"); delay(900) }
-                        }
+                    val set: (String) -> Unit = { pose = pose.copy(frame = it) }
+                    val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                    val sleepy = h >= 23 || h < 6
+                    // Вес действий: ночью чаще зевает, днём чаще гуляет и танцует.
+                    when (Random.nextInt(100)) {
+                        in 0..21 -> lookAtViewer({ busy }, set)
+                        in 22..43 -> if (roam > 0) walkTo(Random.nextInt(0, roam + 1), { pose }, { busy }) { pose = it }
+                        in 44..55 -> if (!busy) wave(set)
+                        in 56..65 -> if (!busy) groom(set)
+                        in 66..75 -> if (!busy) { if (sleepy || Random.nextBoolean()) yawn(set) else stretch(set) }
+                        in 76..83 -> if (!busy) stretch(set)
+                        in 84..90 -> if (!busy && !sleepy) dance(set)
+                        else -> if (!busy) { set("happy"); delay(900) }
                     }
                 }
             }
@@ -263,6 +277,41 @@ private suspend fun lookAtViewer(busy: () -> Boolean, set: (String) -> Unit) {
     if (!busy()) set("sit0")
 }
 
+/** Машет лапкой: поворачивается к зрителю и качает лапку вверх-вниз. */
+private suspend fun wave(set: (String) -> Unit) {
+    repeat(Random.nextInt(2, 4)) { set("look"); delay(230); set("wave"); delay(230) }
+    set("look"); delay(500); set("sit0")
+}
+
+/** Зевает: прикрывает глаза, широко открывает рот, медленно закрывает. */
+private suspend fun yawn(set: (String) -> Unit) {
+    set("half"); delay(160)
+    set("yawn"); delay(Random.nextLong(900, 1300))
+    set("blink"); delay(220)
+    set("half"); delay(160)
+    set("sit0")
+}
+
+/** Потягивается: лапки вверх, глаза зажмурены. */
+private suspend fun stretch(set: (String) -> Unit) {
+    set("crouch"); delay(180)
+    set("stretch"); delay(Random.nextLong(900, 1400))
+    set("crouch"); delay(150)
+    set("sit0")
+}
+
+/** Умывается лапкой — несколько движений у мордочки. */
+private suspend fun groom(set: (String) -> Unit) {
+    repeat(Random.nextInt(3, 6)) { set("groom0"); delay(190); set("groom1"); delay(190) }
+    set("blink"); delay(150); set("sit0")
+}
+
+/** Танцует: лапки по очереди вверх, в ритм. */
+private suspend fun dance(set: (String) -> Unit) {
+    repeat(Random.nextInt(3, 6)) { set("danceL"); delay(260); set("danceR"); delay(260) }
+    set("happy"); delay(500); set("sit0")
+}
+
 private suspend fun walkTo(target: Int, pose: () -> Pose, busy: () -> Boolean, set: (Pose) -> Unit) {
     var phase = 0
     while (pose().x != target) {
@@ -299,7 +348,7 @@ private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
             Modifier
                 .pixelBox(border, fill, 3)
                 .padding(horizontal = 16.dp, vertical = 9.dp)
-        ) { PText(text, 15.sp, t.colors.text) }
+        ) { PText(text, 15.sp, t.colors.text, Modifier.widthIn(max = 440.dp), maxLines = 3) }
         // Хвостик: заходит на рамку на 1 «пиксель», чтобы шов был открыт.
         Canvas(Modifier.offset(x = (-3).dp).size(9.dp, 15.dp)) {
             val u = size.width / 3

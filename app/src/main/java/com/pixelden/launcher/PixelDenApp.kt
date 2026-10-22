@@ -20,6 +20,10 @@ class PixelDenApp : Application() {
         private set
     lateinit var engine: ScenarioEngine
         private set
+    lateinit var weather: com.pixelden.launcher.weather.WeatherRepository
+        private set
+    lateinit var news: com.pixelden.launcher.weather.NewsRepository
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -27,6 +31,8 @@ class PixelDenApp : Application() {
         store = ConfigStore(this)
         apps = AppRepository(this, scope)
         engine = ScenarioEngine(this, store, scope)
+        weather = com.pixelden.launcher.weather.WeatherRepository(store, scope).also { it.start() }
+        news = com.pixelden.launcher.weather.NewsRepository(scope).also { if (store.current.talkNews) it.start() }
 
         // При первом запуске кладём шаблоны выключенными, чтобы было с чего начать.
         if (!store.current.templatesOffered) {

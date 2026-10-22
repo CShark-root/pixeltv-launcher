@@ -41,6 +41,23 @@ data class LauncherConfig(
     val showDate: Boolean = true,
     val greeting: Boolean = true,
 
+    // Погода
+    val weatherEnabled: Boolean = true,
+    val weatherCity: String? = null,
+    val weatherLat: Double? = null,
+    val weatherLon: Double? = null,
+    /** Ключ API Яндекс Погоды; пусто — берём Open-Meteo. */
+    val yandexWeatherKey: String = "",
+
+    /** Болтливость маскота: 0 — молчит, 1 — редко, 2 — обычно, 3 — болтун. */
+    val mascotChatter: Int = 2,
+    /** Называть приложение в фокусе в облачке. */
+    val mascotNamesApps: Boolean = true,
+    /** Источники «живых» реплик. */
+    val talkFacts: Boolean = true,
+    val talkHolidays: Boolean = true,
+    val talkNews: Boolean = true,
+
     // Ряды
     val showFavorites: Boolean = true,
     val showInputs: Boolean = true,

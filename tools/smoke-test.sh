@@ -10,10 +10,16 @@ PKG=com.pixelden.launcher
 k() { $ADB shell input keyevent "$@"; sleep 0.5; }
 shot() { $ADB shell screencap -p /sdcard/smoke.png; $ADB pull /sdcard/smoke.png "$OUT/smoke_$1.png" >/dev/null 2>&1; }
 alive() {
-    pid=$($ADB shell pidof $PKG | tr -d '\r')
-    top=$($ADB shell dumpsys activity activities | grep mResumedActivity | grep -c $PKG)
-    if [ -z "$pid" ] || [ "$top" = "0" ]; then echo "FAIL после шага: $1"; $ADB shell logcat -d -b crash | grep -A6 "FATAL EXCEPTION" | tail -8; exit 1; fi
-    echo "ok: $1"
+    # до 3 попыток: во время перехода между экранами активити может на миг не быть «сверху»
+    for try in 1 2 3; do
+        pid=$($ADB shell pidof $PKG | tr -d '\r')
+        top=$($ADB shell dumpsys activity activities | grep mResumedActivity | grep -c $PKG)
+        [ -n "$pid" ] && [ "$top" != "0" ] && { echo "ok: $1"; return 0; }
+        sleep 0.7
+    done
+    echo "FAIL после шага: $1"
+    $ADB shell logcat -d -b crash | grep -A6 "FATAL EXCEPTION" | tail -8
+    exit 1
 }
 
 $ADB logcat -b crash -c

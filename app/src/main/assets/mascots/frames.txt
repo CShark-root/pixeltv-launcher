@@ -1,2 +1,2 @@
 32 32
-sit0 sit1 half blink crouch happy look lookblink walk0 walk1 walk2 walk3 walk4 walk5 walk6 walk7 jump sleep0 sleep1
+sit0 sit1 half blink crouch happy look lookblink walk0 walk1 walk2 walk3 walk4 walk5 walk6 walk7 jump sleep0 sleep1 yawn stretch groom0 groom1 surprise danceL danceR wave

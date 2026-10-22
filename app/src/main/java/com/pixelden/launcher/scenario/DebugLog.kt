@@ -11,13 +11,14 @@ import com.pixelden.launcher.PixelDenApp
 import com.pixelden.launcher.data.ConfigStore
 import com.pixelden.launcher.data.LauncherConfig
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Журнал отладки: последние события движка сценариев, кнопок и ошибок. Виден в лаунчере и в logcat (тег PixelDen). */
+/** Журнал отладки: последние события движка сценариев, кнопок и ошибок. Виден в лаунчере и в logcat (тег PixelTv). */
 object DebugLog {
     data class Entry(val time: Long, val msg: String, val error: Boolean)
 
@@ -37,12 +38,12 @@ object DebugLog {
     }
 
     fun i(msg: String) {
-        Log.i("PixelDen", msg)
+        Log.i("PixelTv", msg)
         add(Entry(System.currentTimeMillis(), msg, false))
     }
 
     fun e(msg: String, t: Throwable? = null) {
-        Log.w("PixelDen", msg, t)
+        Log.w("PixelTv", msg, t)
         val detail = t?.let { ": ${it.javaClass.simpleName} ${it.message ?: ""}" } ?: ""
         add(Entry(System.currentTimeMillis(), msg + detail, true))
     }
@@ -57,7 +58,7 @@ object DebugLog {
         val out = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "pixelden-debug.txt")
         out.parentFile?.mkdirs()
         out.writeText(buildString {
-            appendLine("PixelDen debug dump ${Date()}")
+            appendLine("PixelTv debug dump ${Date()}")
             appendLine("accessibility service: ${if (DenAccessibilityService.instance != null) "bound" else "NOT bound"}")
             appendLine("canWrite system settings: ${android.provider.Settings.System.canWrite(context)}")
             appendLine("can draw overlays: ${android.provider.Settings.canDrawOverlays(context)}")
@@ -66,7 +67,9 @@ object DebugLog {
             entries.value.forEach { appendLine(format(it)) }
             appendLine()
             appendLine("=== config")
-            appendLine(ConfigStore.json.encodeToString(LauncherConfig.serializer(), cfg))
+            // Секреты в выгрузку не попадают: файл лежит в общей памяти ТВ.
+            val safe = cfg.copy(yandexWeatherKey = if (cfg.yandexWeatherKey.isBlank()) "" else "задан (${cfg.yandexWeatherKey.length} символов)")
+            appendLine(ConfigStore.json.encodeToString(LauncherConfig.serializer(), safe))
         })
         return out
     }
@@ -92,6 +95,25 @@ class DebugReceiver : BroadcastReceiver() {
                 val s = app.store.current.scenarios.firstOrNull { it.name.equals(name, ignoreCase = true) || it.id == name }
                 if (s == null) { DebugLog.e("RUN: сценарий «$name» не найден"); resultData = "not found" }
                 else { DebugLog.i("RUN по команде adb: ${s.name}"); app.engine.run(s, "adb"); resultData = "started" }
+            }
+            "com.pixelden.launcher.CITY" -> {
+                val name = intent.getStringExtra("name").orEmpty()
+                val dry = intent.getBooleanExtra("dry", false)   // только найти, не выбирать
+                app.scope.launch {
+                    runCatching { app.weather.searchCity(name) }
+                        .onSuccess { list ->
+                            DebugLog.i("CITY «$name»: найдено ${list.size}" + (list.firstOrNull()?.let { ", выбран ${it.name} (${it.region})" } ?: ""))
+                            if (!dry) list.firstOrNull()?.let { p ->
+                                app.store.update { it.copy(weatherCity = p.name, weatherLat = p.lat, weatherLon = p.lon) }
+                                app.weather.refresh()
+                            }
+                        }
+                        .onFailure { DebugLog.e("CITY «$name» не удался", it) }
+                }
+            }
+            "com.pixelden.launcher.REFRESH" -> {
+                DebugLog.i("обновление погоды и новостей по команде adb")
+                app.scope.launch { app.weather.refresh(); app.news.refresh() }
             }
             "com.pixelden.launcher.KEYLOG" -> {
                 DebugLog.logKeys = intent.getBooleanExtra("on", true)

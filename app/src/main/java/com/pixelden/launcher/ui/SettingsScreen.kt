@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -78,6 +79,15 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
     val first = rememberAutoFocus()
     val section = SECTIONS.firstOrNull { it.key == page }
     var renameCat by remember { mutableStateOf<Category?>(null) }
+    var cityEdit by remember { mutableStateOf(false) }
+    var keyEdit by remember { mutableStateOf(false) }
+    var cityResults by remember { mutableStateOf<List<com.pixelden.launcher.weather.Place>>(emptyList()) }
+    val pageScope = androidx.compose.runtime.rememberCoroutineScope()
+    fun refreshWeather() { pageScope.launch { app.weather.refresh() } }
+    fun pickCity(p: com.pixelden.launcher.weather.Place) {
+        store.update { it.copy(weatherCity = p.name, weatherLat = p.lat, weatherLon = p.lon) }
+        refreshWeather()
+    }
     var pickWallpaper by remember { mutableStateOf(false) }
     var tvBacklight by remember { mutableStateOf(readBacklight(context)) }
     val wallpapers = remember { listWallpapers() }
@@ -111,6 +121,22 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
                 item { ToggleRow("Показывать маскота", cfg.mascotEnabled) { v -> set { it.copy(mascotEnabled = v) } } }
                 item { ToggleRow("Маскот разговаривает", cfg.mascotSpeaks, "Приветствие, название приложения в фокусе, итоги сценариев") { v -> set { it.copy(mascotSpeaks = v) } } }
+                item {
+                    val levels = listOf("молчит", "редко", "обычно", "болтун")
+                    SettingRow("Болтливость", levels[cfg.mascotChatter.coerceIn(0, 3)],
+                        hint = "Как часто маскот сам что-то говорит",
+                        onLeft = { set { it.copy(mascotChatter = it.mascotChatter.stepIn(-1, 0..3)) } },
+                        onRight = { set { it.copy(mascotChatter = it.mascotChatter.stepIn(1, 0..3)) } })
+                }
+                item { ToggleRow("Факты", cfg.talkFacts, "Любопытные факты про котов, кино, космос, игры") { v -> set { it.copy(talkFacts = v) } } }
+                item { ToggleRow("Праздники", cfg.talkHolidays, "Поздравляет с праздниками и памятными датами") { v -> set { it.copy(talkHolidays = v) } } }
+                item {
+                    ToggleRow("Свежие новости", cfg.talkNews, "Заголовки Ленты.ру, обновляются раз в час") { v ->
+                        set { it.copy(talkNews = v) }
+                        if (v) app.news.start()
+                    }
+                }
+                item { ToggleRow("Называть приложение в фокусе", cfg.mascotNamesApps) { v -> set { it.copy(mascotNamesApps = v) } } }
                 item {
                     SettingRow("Засыпает через", "${cfg.mascotSleepMinutes} мин",
                         onLeft = { set { it.copy(mascotSleepMinutes = it.mascotSleepMinutes.stepIn(-1, 1..60)) } },
@@ -197,6 +223,29 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                             .onFailure { toast(context, "Эта страница на ТВ недоступна") }
                     }
                 }
+            }
+
+            if (page == "weather") {
+                item { ToggleRow("Показывать погоду", cfg.weatherEnabled) { v -> set { it.copy(weatherEnabled = v) }; refreshWeather() } }
+                item {
+                    SettingRow("Город", cfg.weatherCity ?: "не выбран", hint = "OK — найти город по названию") { cityEdit = true }
+                }
+                item {
+                    SettingRow(
+                        "Ключ API Яндекс Погоды", if (cfg.yandexWeatherKey.isBlank()) "нет" else "задан",
+                        hint = "Без ключа погода берётся у Open-Meteo. Ключ выдают на developer.tech.yandex.ru",
+                        onLongClick = { set { it.copy(yandexWeatherKey = "") }; refreshWeather() },
+                    ) { keyEdit = true }
+                }
+                item {
+                    val w by app.weather.now.collectAsState()
+                    val err by app.weather.error.collectAsState()
+                    SettingRow(
+                        "Источник", err?.let { "ошибка" } ?: w?.source ?: "—",
+                        hint = err ?: w?.let { "${it.temp}°, ${it.sky.text} · обновлено " + java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it.updatedAt)) },
+                    )
+                }
+                item { SettingRow("Обновить сейчас") { refreshWeather() } }
             }
 
             if (page == "grid") {
@@ -308,7 +357,7 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
             }
 
             if (page == "about") {
-                item { SettingRow("PixelDen ${BuildConfig.VERSION_NAME}", hint = "Шрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)") }
+                item { SettingRow("PixelTv ${BuildConfig.VERSION_NAME}", hint = "Шрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)") }
             }
         }
 
@@ -321,6 +370,40 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
             ) { path ->
                 set { it.copy(wallpaperPath = path) }
                 pickWallpaper = false
+            }
+        }
+
+        if (cityEdit) {
+            TextEditOverlay("Город", cfg.weatherCity ?: "", onDismiss = { cityEdit = false }) { q ->
+                cityEdit = false
+                if (q.isNotBlank()) pageScope.launch {
+                    val found = runCatching { app.weather.searchCity(q) }.getOrElse { 
+                        com.pixelden.launcher.scenario.DebugLog.e("поиск города «$q» не удался", it)
+                        toast(context, "Поиск не удался: ${it.javaClass.simpleName} ${it.message ?: ""}"); null
+                    } ?: return@launch
+                    when (found.size) {
+                        0 -> toast(context, "Город «$q» не найден")
+                        1 -> pickCity(found.first())
+                        else -> cityResults = found
+                    }
+                }
+            }
+        }
+        if (cityResults.isNotEmpty()) {
+            Overlay("Какой город?", onDismiss = { cityResults = emptyList() }) {
+                items(cityResults.size) { i ->
+                    val p = cityResults[i]
+                    SettingRow(p.name, hint = p.region, focusRequester = if (i == 0) rememberAutoFocus() else null) {
+                        pickCity(p); cityResults = emptyList()
+                    }
+                }
+            }
+        }
+        if (keyEdit) {
+            TextEditOverlay("Ключ API Яндекс Погоды", cfg.yandexWeatherKey, onDismiss = { keyEdit = false }) { k ->
+                set { it.copy(yandexWeatherKey = k.trim()) }
+                keyEdit = false
+                refreshWeather()
             }
         }
 

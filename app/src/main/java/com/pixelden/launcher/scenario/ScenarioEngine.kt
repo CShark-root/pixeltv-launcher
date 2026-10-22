@@ -138,7 +138,7 @@ class ScenarioEngine(
             DenAccessibilityService.instance?.let { return it }
             delay(250); waited += 250
         }
-        error("служба специальных возможностей PixelDen выключена")
+        error("служба специальных возможностей PixelTv выключена")
     }
 
     private suspend fun clickText(text: String, timeoutSec: Int) {
@@ -176,6 +176,6 @@ class ScenarioEngine(
     }
 
     companion object {
-        const val TAG = "PixelDen"
+        const val TAG = "PixelTv"
     }
 }

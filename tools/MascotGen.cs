@@ -13,6 +13,7 @@ public static class MascotGen
         "sit0", "sit1", "half", "blink", "crouch", "happy", "look", "lookblink",
         "walk0", "walk1", "walk2", "walk3", "walk4", "walk5", "walk6", "walk7",
         "jump", "sleep0", "sleep1",
+        "yawn", "stretch", "groom0", "groom1", "surprise", "danceL", "danceR", "wave",
     };
 
     // Левая половина, 11 колонок (колонки 0–1 — место под ручку, её рисует код).
@@ -133,7 +134,7 @@ public static class MascotGen
         p.C['z'] = string.IsNullOrEmpty(stripe) ? Hex(body) : Hex(stripe);
         p.C['f'] = string.IsNullOrEmpty(feet) ? Hex(body) : Hex(feet);
         p.C['x'] = string.IsNullOrEmpty(tip) ? Hex(body) : Hex(tip);
-        p.C['t'] = Hex(body); p.C['a'] = Hex(body);
+        p.C['t'] = Hex(body); p.C['a'] = Hex(body); p.C['A'] = Mix(Hex(shade), Hex(outline), 0.45f);
         p.Outline = Hex(outline);
         p.C['m'] = p.Outline; p.C['k'] = p.Outline;
         p.C['h'] = Color.White;
@@ -211,13 +212,19 @@ public static class MascotGen
         {
             case 1: cells = new[,] { { 1, 0 }, { 1, 1 }, { 0, 1 }, { 0, 2 }, { -1, 2 }, { -1, 3 } }; break;
             case 2: cells = new[,] { { 1, 0 }, { 1, -1 }, { 0, -1 }, { 0, -2 }, { -1, -2 }, { -1, -3 } }; break;
-            case 3: cells = new[,] { { 1, 0 }, { 1, -1 }, { 1, -2 }, { 0, -2 }, { 0, -3 }, { 0, -4 } }; break;
+            // 3 — высоко вверх и наружу, вдоль щеки: голова шире тела, иначе лапка прячется в силуэте
+            case 3: cells = new[,] { { 1, 0 }, { 0, -1 }, { 0, -2 }, { -1, -2 }, { -1, -3 }, { -1, -4 }, { -1, -5 }, { -2, -5 } }; break;
+            // 4/5 — лапка у мордочки (умывается): идёт вверх и внутрь, к щеке
+            case 4: cells = new[,] { { 1, 0 }, { 2, -1 }, { 3, -1 }, { 4, -2 }, { 5, -2 }, { 5, -3 }, { 6, -3 } }; break;
+            case 5: cells = new[,] { { 1, 0 }, { 2, -1 }, { 3, -1 }, { 4, -1 }, { 5, -2 }, { 6, -2 }, { 6, -1 } }; break;
             default: cells = new[,] { { 1, 0 }, { 1, 1 }, { 1, 2 }, { 0, 1 }, { 0, 2 }, { 0, 3 } }; break;
         }
         for (int i = 0; i < cells.GetLength(0); i++)
         {
             int x = OX + sp.BodyX - 2 + cells[i, 0], yy = y + cells[i, 1];
-            g[side == 0 ? x : Mir(x), yy] = 'a';
+            int gx = side == 0 ? x : Mir(x);
+            // Лапка поверх тела — тоном темнее, иначе она сливается с шерстью.
+            g[gx, yy] = g[gx, yy] == '.' ? 'a' : 'A';
         }
     }
 
@@ -292,6 +299,26 @@ public static class MascotGen
         g[OX + 10, y] = 'p'; g[Mir(OX + 10), y] = 'p';
     }
 
+    /// Широко открытый рот (зевок): контур и розовое горло под носиком.
+    static void BigMouth(Grid g, Species sp, int top)
+    {
+        int y = top + sp.EyeRow + 3;
+        for (int dy = 0; dy < 3; dy++)
+            for (int x = OX + 9; x <= OX + 10; x++)
+            {
+                char c = dy == 2 || x == OX + 9 ? 'm' : 'p';
+                g[x, y + dy] = c; g[Mir(x), y + dy] = c;
+            }
+    }
+
+    /// Ротик «о» (удивление).
+    static void SmallO(Grid g, Species sp, int top)
+    {
+        int y = top + sp.EyeRow + 3;
+        g[OX + 10, y] = 'm'; g[Mir(OX + 10), y] = 'm';
+        g[OX + 10, y + 1] = 'm'; g[Mir(OX + 10), y + 1] = 'm';
+    }
+
     static void ShiftDown(Grid g, int fromRow, int rows)
     {
         for (int n = 0; n < rows; n++)
@@ -333,6 +360,14 @@ public static class MascotGen
             case "jump": eyes = "happy"; armL = 2; armR = 2; tailUp = true; hop = 1; Legs(g, sp, top, 1, 1); OpenMouth(g, sp, top); break;
             case "sleep0": eyes = "closed"; squash = 1; break;
             case "sleep1": eyes = "closed"; squash = 2; break;
+            case "yawn": eyes = "closed"; BigMouth(g, sp, top); break;
+            case "stretch": eyes = "closed"; armL = 3; armR = 3; hop = 1; break;
+            case "groom0": eyes = "closed"; armR = 4; break;
+            case "groom1": eyes = "closed"; armR = 5; break;
+            case "surprise": SmallO(g, sp, top); armL = 1; armR = 1; hop = 1; break;
+            case "danceL": eyes = "happy"; armL = 3; armR = 0; hop = 1; wag = 1; tailUp = true; break;
+            case "danceR": eyes = "happy"; armL = 0; armR = 3; tailUp = true; break;
+            case "wave": armR = 2; tailUp = true; wag = 1; break;
         }
         if (frame.StartsWith("walk"))
         {

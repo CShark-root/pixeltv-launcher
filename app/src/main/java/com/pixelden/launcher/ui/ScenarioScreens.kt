@@ -129,7 +129,7 @@ fun ScenarioListScreen(cfg: LauncherConfig, onEdit: (String) -> Unit) {
             item { PText("OK — изменить · < > — вкл/выкл · удержание OK — запустить, копия, удалить", 14.sp, t.colors.dim, Modifier.padding(bottom = 12.dp)) }
             if (DenAccessibilityService.instance == null) {
                 item {
-                    PText("! Служба PixelDen выключена: кнопки пульта и «нажать по тексту» не будут работать.", 15.sp, t.colors.accent, Modifier.padding(bottom = 10.dp), maxLines = 2)
+                    PText("! Служба PixelTv выключена: кнопки пульта и «нажать по тексту» не будут работать.", 15.sp, t.colors.accent, Modifier.padding(bottom = 10.dp), maxLines = 2)
                 }
             }
             item {
@@ -355,7 +355,7 @@ private fun KeyCaptureOverlay(onDismiss: () -> Unit, onKey: (Int) -> Unit) {
         item {
             PText(
                 if (serviceOn) "Любая кнопка, включая «Меню» и голосовую. Отмена — подождите или выберите ниже."
-                else "Служба PixelDen выключена: перехват кнопок недоступен. Включите её в «Настройки → Права и службы».",
+                else "Служба PixelTv выключена: перехват кнопок недоступен. Включите её в «Настройки → Права и службы».",
                 16.sp, maxLines = 4,
             )
         }

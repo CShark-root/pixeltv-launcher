@@ -70,6 +70,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.random.Random
 
 @Composable
 fun HomeScreen(
@@ -89,6 +90,7 @@ fun HomeScreen(
     var menuFor by remember { mutableStateOf<AppEntry?>(null) }
     var renameFor by remember { mutableStateOf<AppEntry?>(null) }
     var focusedLabel by remember { mutableStateOf<String?>(null) }
+    var focusedPkg by remember { mutableStateOf<String?>(null) }
     var jump by remember { mutableStateOf(0) }
     var restoreKey by remember { mutableStateOf<String?>(null) }
     var lastFocusKey by remember { mutableStateOf<String?>(null) }
@@ -144,7 +146,7 @@ fun HomeScreen(
             contentPadding = PaddingValues(start = 56.dp, end = 56.dp, top = 36.dp, bottom = 48.dp),
         ) {
             item {
-                Header(cfg, idle, focusedLabel, event, jump, onOpenSettings, onOpenScenarios, onEventShown = { app.engine.clearEvent() },
+                Header(cfg, idle, focusedLabel, focusedPkg, event, jump, onOpenSettings, onOpenScenarios, onEventShown = { app.engine.clearEvent() },
                     onTopFocus = ::scrollTop)
             }
             if (manual.isNotEmpty()) {
@@ -161,7 +163,7 @@ fun HomeScreen(
                         PText("Удерживайте OK на приложении → «В избранное»", 14.sp, t.colors.dim, Modifier.padding(bottom = 18.dp))
                     } else {
                         AppRow(favorites, "fav", cfg, cfg.cardSize * 1.9f, restoreKey,
-                            onFocus = { e, k -> focusedLabel = labelOf(cfg, e); lastFocusKey = k; scrollTop() },
+                            onFocus = { e, k -> focusedLabel = labelOf(cfg, e); focusedPkg = e.pkg; lastFocusKey = k; scrollTop() },
                             onClick = ::launch, onLong = { menuFor = it })
                     }
                 }
@@ -179,7 +181,7 @@ fun HomeScreen(
                     item(key = "cat-${cat.id}") {
                         RowTitle(cat.name)
                         AppRow(list, "cat${cat.id}", cfg, cfg.cardSize * 2.2f, restoreKey,
-                            onFocus = { e, k -> focusedLabel = labelOf(cfg, e); lastFocusKey = k },
+                            onFocus = { e, k -> focusedLabel = labelOf(cfg, e); focusedPkg = e.pkg; lastFocusKey = k },
                             onClick = ::launch, onLong = { menuFor = it })
                     }
                 }
@@ -190,7 +192,7 @@ fun HomeScreen(
                 item { RowTitle("Все приложения · ${rest.size}") }
                 item {
                     AppGrid(rest, cfg, restoreKey,
-                        onFocus = { e, k -> focusedLabel = labelOf(cfg, e); lastFocusKey = k },
+                        onFocus = { e, k -> focusedLabel = labelOf(cfg, e); focusedPkg = e.pkg; lastFocusKey = k },
                         onClick = ::launch, onLong = { menuFor = it })
                 }
             }
@@ -246,6 +248,7 @@ private fun Header(
     cfg: LauncherConfig,
     idle: Boolean,
     focusedLabel: String?,
+    focusedPkg: String?,
     event: String?,
     jump: Int,
     onOpenSettings: () -> Unit,
@@ -268,27 +271,63 @@ private fun Header(
     }
     val dateFmt = remember { SimpleDateFormat("EEEE, d MMMM", Locale("ru")) }
 
+    val app = PixelDenApp.instance
+    val weather by app.weather.now.collectAsState()
+    val news by app.news.titles.collectAsState()
     var bubble by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        if (cfg.greeting && cfg.mascotSpeaks) {
-            bubble = greeting()
-            delay(5000)
-            bubble = null
-        }
+    var appComment by remember { mutableStateOf<String?>(null) }
+
+    /** Показать реплику на [ms] и убрать, если её не перебили другой. */
+    suspend fun say(text: String, ms: Long) {
+        bubble = text
+        delay(ms)
+        if (bubble == text) bubble = null
     }
+
+    // Приветствие (в праздник — поздравление).
+    LaunchedEffect(Unit) {
+        if (cfg.greeting && cfg.mascotSpeaks) say(MascotTalk.greetingFor(cfg.mascot, cfg.talkHolidays), 5000)
+    }
+    // Итоги сценариев.
     LaunchedEffect(event) {
-        if (event != null && cfg.mascotSpeaks) {
-            bubble = event
-            delay(4000)
-            bubble = null
+        if (event != null) {
+            if (cfg.mascotSpeaks) say(event, 4000)
             onEventShown()
         }
     }
+    // Болтовня: болтовня, факты, новости, праздники — с паузами по выбранной болтливости.
+    LaunchedEffect(cfg.mascotChatter, cfg.mascotSpeaks, idle) {
+        if (!cfg.mascotSpeaks || cfg.mascotChatter == 0 || idle) return@LaunchedEffect
+        val (from, to) = when (cfg.mascotChatter) { 1 -> 360_000L to 600_000L; 3 -> 45_000L to 100_000L; else -> 120_000L to 260_000L }
+        while (true) {
+            delay(Random.nextLong(from, to))
+            if (bubble == null) {
+                say(MascotTalk.live(cfg.mascot, weather, cfg.talkFacts, cfg.talkHolidays, if (cfg.talkNews) news else emptyList()), 7000)
+            }
+        }
+    }
+    // Проснулся, когда вернулись к пульту.
+    var wasIdle by remember { mutableStateOf(idle) }
+    LaunchedEffect(idle) {
+        if (wasIdle && !idle && cfg.mascotSpeaks) say(MascotTalk.welcomeBack(), 3500)
+        wasIdle = idle
+    }
+    // Иногда комментирует приложение в фокусе вместо простого названия.
+    LaunchedEffect(focusedPkg) {
+        appComment = null
+        val pkg = focusedPkg ?: return@LaunchedEffect
+        if (cfg.mascotSpeaks && Random.nextInt(100) < 30) {
+            appComment = MascotTalk.aboutApp(pkg)
+            if (appComment != null) { delay(3500); appComment = null }
+        }
+    }
+    val shown = bubble ?: appComment ?: if (idle || !cfg.mascotNamesApps) null else focusedLabel
 
     Row(Modifier.fillMaxWidth().padding(bottom = 14.dp), verticalAlignment = Alignment.Bottom) {
         Column(Modifier.weight(1f)) {
             PText(timeFmt.format(now), 64.sp, t.colors.text)
             if (cfg.showDate) PText(dateFmt.format(now).replaceFirstChar { it.uppercase() }, 18.sp, t.colors.dim)
+            WeatherLine(cfg)
             Spacer(Modifier.height(10.dp))
             Row(Modifier.onFocusChanged { if (it.hasFocus) onTopFocus() }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PButton("Сценарии", size = 14.sp, onClick = onOpenScenarios)
@@ -310,11 +349,11 @@ private fun Header(
                         mood = if (idle) MascotMood.SLEEP else MascotMood.IDLE,
                         animate = t.animations,
                         jumpKey = jump,
-                        talking = bubble != null,
+                        talking = bubble != null || appComment != null,
                         // полоса прогулок не шире места под маскота
                         roam = (360 / cfg.mascotScale - 32).coerceIn(0, 40),
                         headroom = 8,
-                        bubble = bubble ?: if (idle) null else focusedLabel,
+                        bubble = shown,
                     )
                 }
             }
@@ -322,12 +361,6 @@ private fun Header(
     }
 }
 
-private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-    in 5..11 -> "Доброе утро!"
-    in 12..17 -> "Добрый день!"
-    in 18..22 -> "Добрый вечер!"
-    else -> "Не спится?"
-}
 
 @Composable
 private fun RowTitle(text: String) {
@@ -571,5 +604,23 @@ private fun AppMenu(entry: AppEntry, cfg: LauncherConfig, onDismiss: () -> Unit,
             }
         }
         item { SettingRow("Закрыть", onClick = onDismiss) }
+    }
+}
+
+/** Погода под датой: пиксельная иконка, температура, состояние и «ощущается как». */
+@Composable
+private fun WeatherLine(cfg: LauncherConfig) {
+    if (!cfg.weatherEnabled || cfg.weatherLat == null) return
+    val t = LocalDen.current
+    val w by PixelDenApp.instance.weather.now.collectAsState()
+    val now = w ?: return
+    Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        PixelIcon(com.pixelden.launcher.weather.skyIcon(now.sky, now.isDay), 3, t.colors.text.copy(alpha = 0.8f), t.colors.text)
+        PText(
+            (if (now.temp > 0) "+" else "") + "${now.temp}°  ${now.sky.text}" +
+                (now.feelsLike?.takeIf { it != now.temp }?.let { " · ощущается ${if (it > 0) "+" else ""}$it°" } ?: "") +
+                (cfg.weatherCity?.let { " · $it" } ?: ""),
+            18.sp, t.colors.dim, Modifier.padding(start = 10.dp),
+        )
     }
 }
