@@ -84,6 +84,7 @@ fun actionText(a: Action, cfg: LauncherConfig): String {
         is Action.ClickText -> "Нажать «${a.text}»"
         is Action.PutSetting -> "Записать ${a.namespace}/${a.key} = ${a.value}"
         is Action.Toast -> "Показать «${a.text}»"
+        is Action.SleepTimer -> if (a.minutes > 0) "Таймер сна ${a.minutes} мин" else "Отменить таймер сна"
     }
 }
 
@@ -112,6 +113,7 @@ private val NEW_ACTIONS: List<Pair<String, () -> Action>> = listOf(
     "Нажать пункт по тексту" to { Action.ClickText() },
     "Записать системную настройку" to { Action.PutSetting() },
     "Показать сообщение" to { Action.Toast("Привет!") },
+    "Таймер сна" to { Action.SleepTimer() },
 )
 
 // ---------------------------------------------------------------- список
@@ -455,6 +457,15 @@ private fun ActionEditor(a: Action, cfg: LauncherConfig, onDismiss: () -> Unit, 
         is Action.Toast -> Overlay("Сообщение", onDismiss) {
             item { SettingRow("Текст", a.text.ifEmpty { "—" }, focusRequester = rememberAutoFocus()) { textEdit = a.text to { v -> onChange(a.copy(text = v)) } } }
             item { SettingRow("Готово", onClick = onDismiss) }
+        }
+        is Action.SleepTimer -> Overlay("Таймер сна", onDismiss) {
+            item {
+                SettingRow("Через", if (a.minutes > 0) "${a.minutes} мин" else "отменить", focusRequester = rememberAutoFocus(),
+                    hint = "0 — отменить уже запущенный таймер",
+                    onLeft = { onChange(a.copy(minutes = a.minutes.stepIn(-5, 0..600))) },
+                    onRight = { onChange(a.copy(minutes = a.minutes.stepIn(5, 0..600))) },
+                    onClick = onDismiss)
+            }
         }
         Action.Sleep, Action.GoHome, Action.Back -> onDismiss()
     }

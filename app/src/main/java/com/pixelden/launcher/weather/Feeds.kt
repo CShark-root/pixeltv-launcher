@@ -13,6 +13,10 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Calendar
+import kotlinx.serialization.json.double
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /** Праздники и памятные даты по календарю — работает без интернета. Ключ — "ММ-ДД". */
 object Holidays {
@@ -32,6 +36,16 @@ object Holidays {
         if (c.get(Calendar.DAY_OF_YEAR) == 256) return "День программиста"
         val key = "%02d-%02d".format(c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
         return fixed[key]
+    }
+
+    /** Ближайший праздник после сегодняшнего дня: название и через сколько дней. */
+    fun next(from: Calendar = Calendar.getInstance()): Pair<String, Int>? {
+        val c = from.clone() as Calendar
+        for (d in 1..366) {
+            c.add(Calendar.DAY_OF_YEAR, 1)
+            today(c)?.let { return it to d }
+        }
+        return null
     }
 
     fun line(name: String): String = when (name) {
@@ -134,5 +148,46 @@ class NewsRepository(private val scope: CoroutineScope) {
         } finally {
             c.disconnect()
         }
+    }
+}
+
+data class Rate(val code: String, val value: Double, val previous: Double)
+
+/** Курсы ЦБ РФ (зеркало cbr-xml-daily.ru, без ключа). Обновляются раз в 3 часа. */
+class RatesRepository(private val scope: CoroutineScope) {
+    private val _rates = MutableStateFlow<List<Rate>>(emptyList())
+    val rates: StateFlow<List<Rate>> = _rates
+    private var loop: Job? = null
+    private val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+
+    fun start() {
+        if (loop?.isActive == true) return
+        loop = scope.launch {
+            while (isActive) {
+                // при ошибке — повтор через 5 минут, иначе раз в 3 часа
+                delay(if (refresh()) 3 * 3_600_000L else 5 * 60_000L)
+            }
+        }
+    }
+
+    suspend fun refresh(): Boolean {
+        val r = withContext(Dispatchers.IO) {
+            runCatching {
+                val c = URL("https://www.cbr-xml-daily.ru/daily_json.js").openConnection() as HttpURLConnection
+                c.connectTimeout = 8000
+                c.readTimeout = 8000
+                c.setRequestProperty("User-Agent", "PixelTv/1.0")
+                val body = try { c.inputStream.bufferedReader().use { it.readText() } } finally { c.disconnect() }
+                val valute = json.parseToJsonElement(body).jsonObject["Valute"]!!.jsonObject
+                listOf("USD", "EUR", "CNY").mapNotNull { code ->
+                    val o = valute[code]?.jsonObject ?: return@mapNotNull null
+                    val nominal = o["Nominal"]?.jsonPrimitive?.doubleOrNull ?: 1.0
+                    Rate(code, o["Value"]!!.jsonPrimitive.double / nominal, o["Previous"]!!.jsonPrimitive.double / nominal)
+                }
+            }
+        }
+        r.onSuccess { _rates.value = it; DebugLog.i("курсы: " + it.joinToString { "${it.code} ${"%.2f".format(it.value)}" }) }
+            .onFailure { DebugLog.e("курсы не загрузились", it) }
+        return r.isSuccess
     }
 }

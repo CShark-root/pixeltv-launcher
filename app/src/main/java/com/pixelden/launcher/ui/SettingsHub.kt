@@ -61,9 +61,12 @@ val SECTIONS = listOf(
     Section("mascot", "Маскот", listOf(
         ".#.....#.", ".##...##.", ".#######.", "##+###+##", "#########", "##.#.#.##", ".#######.", "..#...#..", ".........",
     )) { mascotById(it.cfg.mascot).name + if (it.cfg.mascotEnabled) "" else " (скрыт)" },
+    Section("phone", "С телефона", listOf(
+        "..#####..", "..#+++#..", "..#+++#..", "..#+++#..", "..#+++#..", "..#+++#..", "..##+##..", "..#####..", ".........",
+    )) { if (it.cfg.webPanel) "${com.pixelden.launcher.web.WebServer.lanAddress() ?: "нет сети"}:${com.pixelden.launcher.web.WebServer.PORT} · PIN ${it.cfg.webPin}" else "выключено" },
     Section("look", "Внешний вид", listOf(
         "..#####..", ".#+++++#.", "#+#+#+#+#", "#+++++++#", "#+#+###+#", "#++++#++#", ".#++#+#+.", "..####...", ".........",
-    )) { (FONTS.firstOrNull { f -> f.first == it.cfg.font } ?: FONTS.first()).second + if (it.cfg.wallpaperPath != null) " · обои" else "" },
+    )) { (FONTS.firstOrNull { f -> f.first == it.cfg.font } ?: FONTS.first()).second + (sceneName(it.cfg.wallpaperPath)?.let { s -> " · $s" } ?: if (it.cfg.wallpaperPath != null) " · обои" else "") },
     Section("effects", "Эффекты наведения", listOf(
         "....#....", "....#....", "..#.#.#..", "...###...", "#########", "...###...", "..#.#.#..", "....#....", "....#....",
     )) { s -> s.cfg.focusEffects.mapNotNull { id -> FOCUS_EFFECTS.firstOrNull { it.first == id }?.second?.removePrefix("Только ") }.joinToString(", ").ifEmpty { "нет" } },
@@ -73,6 +76,12 @@ val SECTIONS = listOf(
     Section("tv", "Телевизор", listOf(
         "..+...+..", "...+.+...", "#########", "#+++++++#", "#+++++++#", "#+++++++#", "#########", "...#.#...", "..#####..",
     )) { "подсветка ${it.backlight}%" },
+    Section("health", "Здоровье ТВ", listOf(
+        ".##...##.", "#++#.#++#", "#+++#+++#", "#+++++++#", ".#+++++#.", "..#+++#..", "...#+#...", "....#....", ".........",
+    )) { "память, температура, очистка" },
+    Section("widgets", "Виджеты", listOf(
+        "####.####", "#++#.#++#", "####.####", ".........", "####.####", "#++#.#++#", "####.####", ".........", ".........",
+    )) { if (!it.cfg.showWidgets) "выключены" else it.cfg.widgets.mapNotNull { id -> WIDGETS.firstOrNull { w -> w.first == id }?.second?.substringBefore(' ')?.lowercase() }.joinToString(", ") },
     Section("grid", "Сетка и карточки", listOf(
         "###.###..", "#+#.#+#..", "###.###..", ".........", "###.###..", "#+#.#+#..", "###.###..", ".........", ".........",
     )) { "${it.cfg.columns} колонок · ${it.cfg.cardSize}%" },

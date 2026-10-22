@@ -19,6 +19,11 @@ data class LauncherConfig(
     val background: Long = 0xFF14121A,
     val wallpaperPath: String? = null,
     val wallpaperDim: Int = 40,
+    /** Свои обои на утро, день, вечер и ночь (ключи morning/day/evening/night). Пустой слот — общие обои. */
+    val timeWallpapers: Map<String, String> = emptyMap(),
+    val wallpaperByTime: Boolean = false,
+    /** Дождь, снег и гроза по реальной погоде поверх обоев. */
+    val weatherOnWallpaper: Boolean = true,
     val animations: Boolean = true,
     val focusScale: Int = 6,
     val pixelBorder: Int = 3,
@@ -65,6 +70,14 @@ data class LauncherConfig(
     val showAllApps: Boolean = true,
     /** Кнопки запуска ручных сценариев под шапкой. */
     val showManualScenarios: Boolean = false,
+    /** Ряд виджетов под шапкой и их порядок: calendar, rates, timer, health. */
+    val showWidgets: Boolean = true,
+    val widgets: List<String> = listOf("calendar", "rates", "timer", "health"),
+
+    // Настройка с телефона
+    val webPanel: Boolean = true,
+    /** PIN веб-панели; создаётся при первом запуске. */
+    val webPin: String = "",
 
     // Приложения
     val hidden: List<String> = emptyList(),
@@ -80,7 +93,7 @@ data class LauncherConfig(
 )
 
 object Defaults {
-    const val VERSION = 4
+    const val VERSION = 5
 
     /** Пустышки обязательной предустановки и системные пакеты, которым не место на главном экране. */
     val JUNK = listOf(
@@ -101,8 +114,12 @@ object Defaults {
         if (c.defaultsVersion < 3) c = c.copy(mascotScale = 4)
         // v4: эффекты фокуса стали набором — переносим выбранный раньше эффект вместе с увеличением.
         if (c.defaultsVersion < 4) c = c.copy(focusEffects = (listOf("scale") + c.focusEffect).distinct())
+        // v5: PIN для настройки с телефона.
+        if (c.webPin.isBlank()) c = c.copy(webPin = newPin())
         return c.copy(defaultsVersion = VERSION)
     }
+
+    fun newPin(): String = (1000 + java.security.SecureRandom().nextInt(9000)).toString()
 }
 
 @Serializable
@@ -179,4 +196,8 @@ sealed class Action {
 
     @Serializable @SerialName("toast")
     data class Toast(val text: String = "") : Action()
+
+    /** Таймер сна: ТВ уснёт через [minutes] минут; 0 — отменить таймер. */
+    @Serializable @SerialName("sleep_timer")
+    data class SleepTimer(val minutes: Int = 60) : Action()
 }

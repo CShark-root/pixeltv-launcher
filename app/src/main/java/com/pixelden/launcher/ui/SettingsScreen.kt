@@ -89,6 +89,7 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
         refreshWeather()
     }
     var pickWallpaper by remember { mutableStateOf(false) }
+    var pickSlot by remember { mutableStateOf<String?>(null) }
     var tvBacklight by remember { mutableStateOf(readBacklight(context)) }
     val wallpapers = remember { listWallpapers() }
 
@@ -169,13 +170,33 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                         trailing = { ColorSwatch(cfg.background) })
                 }
                 item {
-                    val options = listOf<String?>(null) + wallpapers
-                    SettingRow("Обои", cfg.wallpaperPath?.let { File(it).nameWithoutExtension.take(24) } ?: "нет",
-                        hint = "OK — выбрать с предпросмотром · < > — листать",
+                    val options = listOf<String?>(null) + SCENES.map { it.first } + wallpapers
+                    SettingRow("Обои", wallName(cfg.wallpaperPath) ?: "нет",
+                        hint = "OK — выбрать с предпросмотром · < > — листать · живые сцены идут первыми",
                         onLeft = { set { it.copy(wallpaperPath = options.cycle(it.wallpaperPath, -1)) } },
                         onRight = { set { it.copy(wallpaperPath = options.cycle(it.wallpaperPath, 1)) } },
                         trailing = { WallThumb(cfg.wallpaperPath, cfg.background, Modifier.padding(start = 12.dp).size(64.dp, 36.dp)) },
-                        onClick = { pickWallpaper = true })
+                        onClick = { pickSlot = null; pickWallpaper = true })
+                }
+                item {
+                    ToggleRow("Погода на обоях", cfg.weatherOnWallpaper, "Дождь, снег, туман и молнии по реальной погоде за окном") { v ->
+                        set { it.copy(weatherOnWallpaper = v) }
+                    }
+                }
+                item {
+                    ToggleRow("Обои по времени суток", cfg.wallpaperByTime, "Утром, днём, вечером и ночью — свои обои") { v ->
+                        set { it.copy(wallpaperByTime = v) }
+                    }
+                }
+                if (cfg.wallpaperByTime) {
+                    items(TIME_SLOTS, key = { "slot" + it.first }) { (slot, label) ->
+                        val p = cfg.timeWallpapers[slot]
+                        SettingRow("   $label", wallName(p) ?: "как общие",
+                            hint = if (p != null) "OK — выбрать · удержание OK — как общие" else "OK — выбрать",
+                            trailing = { WallThumb(p ?: cfg.wallpaperPath, cfg.background, Modifier.padding(start = 12.dp).size(64.dp, 36.dp)) },
+                            onLongClick = { set { it.copy(timeWallpapers = it.timeWallpapers - slot) } },
+                            onClick = { pickSlot = slot; pickWallpaper = true })
+                    }
                 }
                 item {
                     SettingRow("Затемнение обоев", "${cfg.wallpaperDim}%",
@@ -356,19 +377,73 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
+            if (page == "phone") {
+                item {
+                    ToggleRow("Настройка с телефона", cfg.webPanel, "Страница в домашней сети: сценарии, обои, порядок приложений, текст на ТВ") { v ->
+                        set { it.copy(webPanel = v) }
+                        if (v) app.web.start() else app.web.stop()
+                    }
+                }
+                if (cfg.webPanel) {
+                    item {
+                        val ip = com.pixelden.launcher.web.WebServer.lanAddress()
+                        Column(
+                            Modifier.fillMaxWidth().padding(vertical = 10.dp)
+                                .pixelBox(t.colors.accent, t.colors.surface, t.border).padding(24.dp),
+                        ) {
+                            PText("Откройте на телефоне:", 16.sp, t.colors.dim)
+                            PText(if (ip != null) "http://$ip:${com.pixelden.launcher.web.WebServer.PORT}" else "ТВ не в сети", 34.sp, t.colors.text, Modifier.padding(vertical = 6.dp))
+                            PText("PIN:  ${cfg.webPin}", 34.sp, t.colors.accent)
+                            PText("Телефон должен быть в той же сети Wi-Fi.", 14.sp, t.colors.dim, Modifier.padding(top = 8.dp))
+                        }
+                    }
+                    item {
+                        SettingRow("Новый PIN", hint = "Старый перестанет подходить — телефон спросит PIN заново") {
+                            set { it.copy(webPin = com.pixelden.launcher.data.Defaults.newPin()) }
+                        }
+                    }
+                }
+            }
+
+            if (page == "widgets") {
+                item { ToggleRow("Ряд виджетов под часами", cfg.showWidgets) { v -> set { it.copy(showWidgets = v) }; if (v) app.rates.start() } }
+                item { PText("OK — показать или скрыть · < > — порядок", 14.sp, t.colors.dim, Modifier.padding(4.dp, 6.dp, 0.dp, 8.dp)) }
+                val order = cfg.widgets + WIDGETS.map { it.first }.filter { it !in cfg.widgets }
+                items(order, key = { "w$it" }) { id ->
+                    val on = id in cfg.widgets
+                    SettingRow(
+                        WIDGETS.firstOrNull { it.first == id }?.second ?: id, if (on) "ВКЛ" else "ВЫКЛ",
+                        onLeft = { if (on) set { it.copy(widgets = it.widgets.moveItem(id, -1)) } },
+                        onRight = { if (on) set { it.copy(widgets = it.widgets.moveItem(id, 1)) } },
+                        onClick = {
+                            set { it.copy(widgets = if (on) it.widgets - id else it.widgets + id) }
+                            if (!on && id == "rates") app.rates.start()
+                        },
+                    )
+                }
+            }
+
+            if (page == "health") {
+                item { HealthPanel() }
+            }
+
             if (page == "about") {
                 item { SettingRow("PixelTv ${BuildConfig.VERSION_NAME}", hint = "Шрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)") }
             }
         }
 
         if (pickWallpaper) {
+            val slot = pickSlot
             WallpaperPicker(
-                current = cfg.wallpaperPath,
-                files = wallpapers,
+                current = if (slot != null) cfg.timeWallpapers[slot] else cfg.wallpaperPath,
+                files = SCENES.map { it.first } + wallpapers,
                 background = cfg.background,
                 onDismiss = { pickWallpaper = false },
             ) { path ->
-                set { it.copy(wallpaperPath = path) }
+                set {
+                    if (slot == null) it.copy(wallpaperPath = path)
+                    else it.copy(timeWallpapers = if (path == null) it.timeWallpapers - slot else it.timeWallpapers + (slot to path))
+                }
                 pickWallpaper = false
             }
         }
@@ -427,23 +502,14 @@ private fun List<Category>.move(cat: Category, step: Int): List<Category> {
 
 private fun toast(context: Context, text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
 
-private fun listWallpapers(): List<String> {
-    val pics = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-    return listOf(File(pics, "Wallpapers"), pics)
-        .flatMap { dir -> dir.listFiles()?.toList().orEmpty() }
-        .filter { it.isFile && it.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp") }
-        .map { it.absolutePath }
-        .distinct()
-        .sorted()
-}
-
 /** Миниатюра обоев: 4K-картинка ужимается в 16 раз, хватает и для плитки, и для превью в строке. */
 @Composable
 fun WallThumb(path: String?, background: Long, modifier: Modifier = Modifier) {
     val img by produceState<ImageBitmap?>(null, path) {
         value = if (path == null) null else withContext(Dispatchers.IO) {
             runCatching {
-                BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = 16 })?.asImageBitmap()
+                if (path.startsWith("scene:")) sceneStill(path).asImageBitmap()
+                else decodeSampled(path, 320, 180)?.asImageBitmap()
             }.getOrNull()
         }
     }
@@ -487,7 +553,7 @@ private fun WallpaperPicker(
                             if (path == null) PText("Без обоев", 16.sp, t.colors.dim)
                         }
                         PText(
-                            (if (selected) "• " else "") + (path?.let { File(it).nameWithoutExtension.replace('_', ' ').take(30) } ?: "Только цвет фона"),
+                            (if (selected) "• " else "") + (wallName(path)?.replace('_', ' ')?.take(30) ?: "Только цвет фона"),
                             13.sp,
                             if (focused) t.colors.accent else t.colors.dim,
                             Modifier.padding(top = 6.dp, start = 2.dp),
@@ -520,4 +586,16 @@ private fun setBacklight(context: Context, value: Int): Int {
     runCatching { Settings.Global.putInt(context.contentResolver, "picture_backlight", v) }
         .onFailure { toast(context, "Нет прав: adb shell pm grant com.pixelden.launcher android.permission.WRITE_SECURE_SETTINGS") }
     return v
+}
+
+/** Название обоев для строки настроек: сцена или имя файла. */
+fun wallName(path: String?): String? = path?.let { sceneName(it) ?: File(it).nameWithoutExtension.take(24) }
+
+private fun <T> List<T>.moveItem(item: T, step: Int): List<T> {
+    val l = toMutableList()
+    val i = l.indexOf(item)
+    val j = (i + step).coerceIn(0, l.lastIndex)
+    if (i < 0 || i == j) return this
+    l.add(j, l.removeAt(i))
+    return l
 }

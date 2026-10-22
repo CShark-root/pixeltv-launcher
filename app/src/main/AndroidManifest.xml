@@ -19,6 +19,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <!-- Здоровье ТВ: закрыть фоновые процессы и посмотреть недавние приложения (appops GET_USAGE_STATS через adb). -->
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+    <!-- Обновление по сети: APK с телефона или ПК, установку подтверждают на ТВ. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
@@ -66,6 +72,10 @@
 
         <receiver
             android:name=".scenario.AlarmReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".web.InstallReceiver"
             android:exported="false" />
 
         <!-- Отладка через adb: право DUMP есть у adb shell, но не у сторонних приложений. -->

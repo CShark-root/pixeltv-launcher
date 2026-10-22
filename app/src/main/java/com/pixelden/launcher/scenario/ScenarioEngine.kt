@@ -78,6 +78,13 @@ class ScenarioEngine(
 
     fun clearEvent() { _events.value = null }
 
+    /** Реплика маскоту от других частей лаунчера (таймер сна, веб-панель). */
+    fun notify(text: String) { _events.value = text }
+
+    suspend fun sleepNow() {
+        service().performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
+    }
+
     /**
      * Запуск окна. Android 10 не даёт приложениям открывать окна из фона, поэтому запускаем через
      * контекст службы спецвозможностей (система её привязала — ей можно) и только потом — через своё приложение.
@@ -128,6 +135,7 @@ class ScenarioEngine(
             is Action.ClickText -> clickText(a.text, a.timeoutSec)
             is Action.PutSetting -> putSetting(a)
             is Action.Toast -> Toast.makeText(context, a.text, Toast.LENGTH_SHORT).show()
+            is Action.SleepTimer -> com.pixelden.launcher.system.SleepTimer.set(a.minutes)
         }
     }
 

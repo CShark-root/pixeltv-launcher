@@ -79,6 +79,7 @@ fun HomeScreen(
     homeTick: Int,
     onOpenSettings: () -> Unit,
     onOpenScenarios: () -> Unit,
+    onOpenHealth: () -> Unit = {},
 ) {
     val app = PixelDenApp.instance
     val context = LocalContext.current
@@ -138,7 +139,7 @@ fun HomeScreen(
     }
 
     Box(Modifier.fillMaxSize().background(t.colors.bg)) {
-        Wallpaper(cfg)
+        Backdrop(cfg)
 
         LazyColumn(
             Modifier.fillMaxSize(),
@@ -148,6 +149,9 @@ fun HomeScreen(
             item {
                 Header(cfg, idle, focusedLabel, focusedPkg, event, jump, onOpenSettings, onOpenScenarios, onEventShown = { app.engine.clearEvent() },
                     onTopFocus = ::scrollTop)
+            }
+            if (cfg.showWidgets && cfg.widgets.isNotEmpty()) {
+                item { WidgetRow(cfg, onTopFocus = ::scrollTop, onOpenHealth = onOpenHealth) }
             }
             if (manual.isNotEmpty()) {
                 item {
@@ -223,25 +227,6 @@ fun HomeScreen(
 }
 
 private fun labelOf(cfg: LauncherConfig, e: AppEntry) = cfg.renamed[e.pkg] ?: e.label
-
-@Composable
-private fun Wallpaper(cfg: LauncherConfig) {
-    val path = cfg.wallpaperPath ?: return
-    val img by produceState<ImageBitmap?>(null, path) {
-        value = withContext(Dispatchers.IO) {
-            runCatching {
-                // Обои 4K ужимаем вдвое: на телевизоре 1080p-рендер интерфейса, а память дорогая.
-                val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
-                BitmapFactory.decodeFile(path, opts)?.asImageBitmap()
-            }.getOrNull()
-        }
-    }
-    img?.let {
-        // Отдельный слой: обои не перерисовываются при каждом сдвиге списка.
-        Image(it, null, Modifier.fillMaxSize().graphicsLayer(), contentScale = ContentScale.Crop)
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = cfg.wallpaperDim / 100f)))
-    }
-}
 
 @Composable
 private fun Header(

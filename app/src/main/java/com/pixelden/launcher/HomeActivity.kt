@@ -94,6 +94,7 @@ class HomeActivity : ComponentActivity() {
                                 cfg, idle, homeTick,
                                 onOpenSettings = { go(Screen.Settings()) },
                                 onOpenScenarios = { go(Screen.Scenarios) },
+                                onOpenHealth = { go(Screen.Settings("health")) },
                             )
                             is Screen.Settings -> SettingsScreen(
                                 cfg, s.page,

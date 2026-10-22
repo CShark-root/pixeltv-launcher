@@ -24,6 +24,10 @@ class PixelDenApp : Application() {
         private set
     lateinit var news: com.pixelden.launcher.weather.NewsRepository
         private set
+    lateinit var rates: com.pixelden.launcher.weather.RatesRepository
+        private set
+    lateinit var web: com.pixelden.launcher.web.WebServer
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -40,6 +44,11 @@ class PixelDenApp : Application() {
         }
         store.update(Defaults::apply)
         Scheduler.scheduleAll(this, store.current)
+
+        rates = com.pixelden.launcher.weather.RatesRepository(scope).also {
+            if (store.current.showWidgets && "rates" in store.current.widgets) it.start()
+        }
+        web = com.pixelden.launcher.web.WebServer(this).also { if (store.current.webPanel) it.start() }
     }
 
     companion object {

@@ -34,6 +34,19 @@ class DenAccessibilityService : AccessibilityService() {
         return super.onUnbind(intent)
     }
 
+    /** Вписать текст в поле ввода, выбранное на экране (текст набирают на телефоне). */
+    fun typeText(text: String, append: Boolean): Boolean {
+        val node = rootInActiveWindow?.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT) ?: return false
+        if (!node.isEditable) return false
+        val value = if (append) node.text?.toString().orEmpty() + text else text
+        val args = android.os.Bundle().apply {
+            putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
+        }
+        val ok = node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+        DebugLog.i("текст с телефона (${text.length} симв.) → ${node.packageName}: ${if (ok) "вписан" else "не принят"}")
+        return ok
+    }
+
     override fun onDestroy() {
         instance = null
         super.onDestroy()

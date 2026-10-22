@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14121a">
+<title>PixelTv</title>
+<style>
+@font-face { font-family: Tiny5; src: url(/font.ttf); }
+:root { --bg:#14121a; --surface:#1f1d27; --hi:#2b2934; --text:#f4f1ea; --dim:#9a96a6; --accent:#d97757; --bad:#e5534b; --ok:#8bd450; }
+* { box-sizing: border-box; }
+html, body { margin:0; background:var(--bg); color:var(--text); font: 17px/1.35 Tiny5, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+body { padding: 0 0 96px; }
+header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 14px 16px 0; border-bottom: 3px solid var(--surface); }
+h1 { margin: 0; font-size: 28px; letter-spacing: 1px; }
+h1 small { font-size: 14px; color: var(--dim); margin-left: 8px; }
+h2 { font-size: 18px; color: var(--accent); text-transform: uppercase; margin: 22px 0 8px; }
+nav { display: flex; gap: 4px; overflow-x: auto; padding: 10px 0 0; scrollbar-width: none; }
+nav button { flex: none; background: none; border: none; color: var(--dim); font: inherit; padding: 8px 12px 10px; border-bottom: 3px solid transparent; }
+nav button.on { color: var(--text); border-color: var(--accent); }
+main { padding: 8px 16px; max-width: 760px; margin: 0 auto; }
+section { display: none; } section.on { display: block; }
+.card { background: var(--surface); padding: 12px 14px; margin: 8px 0; box-shadow: 0 0 0 3px var(--surface); }
+.row { display: flex; align-items: center; gap: 10px; min-height: 40px; }
+.row > .grow { flex: 1; min-width: 0; }
+.row + .row { border-top: 2px solid var(--bg); }
+.hint { color: var(--dim); font-size: 14px; }
+.btn, button.btn { background: var(--hi); color: var(--text); border: none; font: inherit; padding: 10px 14px; cursor: pointer; box-shadow: inset 0 0 0 3px var(--hi); }
+.btn.accent { background: var(--accent); color: #14121a; box-shadow: none; }
+.btn.small { padding: 6px 10px; font-size: 15px; }
+.btn.bad { color: var(--bad); }
+.btn:active { transform: translateY(1px); filter: brightness(1.2); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+input[type=text], input[type=number], input[type=password], input[type=time], input[type=search], select, textarea {
+  font: inherit; color: var(--text); background: var(--bg); border: none; box-shadow: inset 0 0 0 3px var(--hi); padding: 9px 10px; width: 100%; min-width: 0;
+}
+input:focus, select:focus, textarea:focus { outline: none; box-shadow: inset 0 0 0 3px var(--accent); }
+textarea { min-height: 90px; resize: vertical; }
+input[type=checkbox] { width: 24px; height: 24px; accent-color: var(--accent); flex: none; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+label.row { cursor: pointer; }
+.app img, .icon { width: 40px; height: 40px; object-fit: contain; image-rendering: auto; flex: none; background: var(--bg); }
+.star { font-size: 22px; background: none; border: none; color: var(--dim); padding: 4px 8px; cursor: pointer; font-family: system-ui; }
+.star.on { color: #ffd25a; }
+.walls { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.wall { position: relative; aspect-ratio: 16/9; background: var(--bg) center/cover; box-shadow: 0 0 0 3px var(--hi); display: flex; align-items: flex-end; padding: 6px; font-size: 13px; cursor: pointer; overflow: hidden; }
+.wall span { background: rgba(0,0,0,.6); padding: 2px 6px; }
+.wall.sel { box-shadow: 0 0 0 3px var(--accent); }
+.wall .del { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.7); color: var(--bad); border: none; font: inherit; padding: 2px 8px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { width: 36px; height: 36px; border: none; box-shadow: inset 0 0 0 3px rgba(255,255,255,.15); cursor: pointer; }
+.sw.sel { box-shadow: 0 0 0 3px var(--text); }
+.bar { height: 12px; background: var(--bg); margin-top: 6px; } .bar i { display: block; height: 100%; background: var(--accent); }
+#save { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--surface); display: none; gap: 10px; align-items: center; box-shadow: 0 -3px 0 var(--hi); z-index: 9; }
+#save.on { display: flex; }
+#toast { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 10px 16px; display: none; z-index: 10; max-width: 90vw; }
+#pin { max-width: 360px; margin: 18vh auto 0; padding: 0 16px; text-align: center; }
+#pin input { font-size: 34px; text-align: center; letter-spacing: 10px; margin: 16px 0; }
+.scn-head { display: flex; align-items: center; gap: 10px; }
+.act { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 10px 0; border-top: 2px solid var(--bg); }
+.act .fields { display: grid; gap: 6px; grid-template-columns: 1fr 1fr; grid-column: 1 / -1; }
+.act .fields > .full { grid-column: 1 / -1; }
+.days { display: flex; gap: 4px; flex-wrap: wrap; }
+.days label { display: flex; align-items: center; gap: 3px; background: var(--bg); padding: 4px 8px; }
+pre { white-space: pre-wrap; font: 13px/1.4 ui-monospace, monospace; color: var(--dim); max-height: 60vh; overflow: auto; background: var(--bg); padding: 10px; }
+.muted { opacity: .55; }
+</style>
+</head>
+<body>
+<div id="pin" style="display:none">
+  <h1>PixelTv</h1>
+  <p class="hint">Введите PIN с экрана телевизора:<br>Настройки → С телефона</p>
+  <input id="pinInput" type="text" inputmode="numeric" maxlength="8" autocomplete="off">
+  <button class="btn accent" onclick="enterPin()">Войти</button>
+  <p id="pinErr" class="hint" style="color:var(--bad)"></p>
+</div>
+
+<div id="app" style="display:none">
+<header>
+  <h1>PixelTv <small id="ver"></small></h1>
+  <nav id="tabs"></nav>
+</header>
+<main>
+  <section id="t-remote"></section>
+  <section id="t-apps"></section>
+  <section id="t-scn"></section>
+  <section id="t-wall"></section>
+  <section id="t-set"></section>
+  <section id="t-tv"></section>
+</main>
+</div>
+
+<div id="save"><span class="grow hint" style="flex:1">Есть несохранённые изменения</span>
+  <button class="btn" onclick="revert()">Отменить</button>
+  <button class="btn accent" onclick="save()">Сохранить на ТВ</button></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+let PIN = localStorage.getItem('pixeltv-pin') || '';
+let S = null;          // состояние с ТВ
+let C = null;          // редактируемая копия конфига
+let dirty = false;
+let tab = localStorage.getItem('pixeltv-tab') || 'remote';
+let editing = null;    // id редактируемого сценария
+let appFilter = '';
+
+const TABS = [['remote','Пульт'],['apps','Приложения'],['scn','Сценарии'],['wall','Обои'],['set','Настройки'],['tv','ТВ']];
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hex = n => '#' + (Number(n) & 0xFFFFFF).toString(16).padStart(6, '0');
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', ms); }
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'X-Pin': PIN, ...(opts.headers || {}) } });
+  if (r.status === 401) { showPin('Неверный PIN'); throw new Error('pin'); }
+  const type = r.headers.get('content-type') || '';
+  const body = type.includes('json') ? await r.json() : await r.text();
+  if (!r.ok) throw new Error(body.error || body || r.status);
+  return body;
+}
+
+function showPin(err) { $('#app').style.display = 'none'; $('#pin').style.display = 'block'; $('#pinErr').textContent = err || ''; $('#pinInput').focus(); }
+function enterPin() { PIN = $('#pinInput').value.trim(); localStorage.setItem('pixeltv-pin', PIN); load(); }
+$('#pinInput').addEventListener('keydown', e => { if (e.key === 'Enter') enterPin(); });
+
+async function load() {
+  try { S = await api('/api/state'); } catch (e) { if (e.message !== 'pin') toast('Нет связи с ТВ: ' + e.message, 5000); if (!PIN) showPin(); return; }
+  C = JSON.parse(JSON.stringify(S.config));
+  setDirty(false);
+  $('#pin').style.display = 'none'; $('#app').style.display = 'block';
+  $('#ver').textContent = 'v' + S.version + (S.a11y ? '' : ' · служба кнопок выключена');
+  document.documentElement.style.setProperty('--accent', hex(C.accent));
+  renderTabs(); render();
+}
+
+function setDirty(v) { dirty = v; $('#save').classList.toggle('on', v); }
+function touch() { setDirty(true); }
+function revert() { C = JSON.parse(JSON.stringify(S.config)); setDirty(false); render(); }
+async function save() {
+  try { await api('/api/config', { method: 'POST', body: JSON.stringify(C), headers: { 'Content-Type': 'application/json' } }); toast('Сохранено на ТВ'); await load(); }
+  catch (e) { toast('Не сохранилось: ' + e.message, 5000); }
+}
+
+function renderTabs() {
+  $('#tabs').innerHTML = TABS.map(([id, n]) => `<button class="${id === tab ? 'on' : ''}" onclick="go('${id}')">${n}</button>`).join('');
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === 't-' + tab));
+}
+function go(id) { tab = id; localStorage.setItem('pixeltv-tab', id); renderTabs(); render(); window.scrollTo(0, 0); }
+function render() { ({ remote: rRemote, apps: rApps, scn: rScn, wall: rWall, set: rSet, tv: rTv })[tab](); }
+
+const appName = pkg => C.renamed[pkg] || (S.apps.find(a => a.pkg === pkg) || {}).label || pkg;
+const icon = pkg => `<img class="icon" loading="lazy" src="/api/icon?pkg=${encodeURIComponent(pkg)}&pin=${PIN}" alt="">`;
+
+// ---------------------------------------------------------------- Пульт
+function rRemote() {
+  const manual = C.scenarios.filter(s => s.enabled && s.actions.length);
+  $('#t-remote').innerHTML = `
+  <h2>Текст на ТВ</h2>
+  <div class="card">
+    <p class="hint">Выберите поле ввода на ТВ пультом (поиск YouTube, пароль Wi-Fi…), наберите тут и отправьте.</p>
+    <textarea id="txt" placeholder="Что написать на ТВ"></textarea>
+    <div class="btns" style="margin-top:8px">
+      <button class="btn accent" onclick="sendText(false)">Вписать</button>
+      <button class="btn" onclick="sendText(true)">Дописать</button>
+      <button class="btn" onclick="$('#txt').value=''">Очистить</button>
+    </div>
+  </div>
+  <h2>Кнопки</h2>
+  <div class="grid2">
+    <button class="btn" onclick="nav('back')">Назад</button>
+    <button class="btn" onclick="nav('home')">Домой</button>
+    <button class="btn" onclick="nav('recents')">Недавние</button>
+    <button class="btn" onclick="if(confirm('Усыпить телевизор?'))nav('sleep')">Сон</button>
+  </div>
+  <h2>Таймер сна</h2>
+  <div class="card">
+    <div class="hint" id="timerLeft">${S.timerLeft ? 'ТВ уснёт через ' + S.timerLeft + ' мин' : 'Таймер выключен'}</div>
+    <div class="btns" style="margin-top:8px">
+      ${[15, 30, 45, 60, 90, 120].map(m => `<button class="btn small" onclick="timer(${m})">${m} мин</button>`).join('')}
+      <button class="btn small bad" onclick="timer(0)">Выкл</button>
+    </div>
+  </div>
+  <h2>Сценарии</h2>
+  <div class="btns">${manual.map(s => `<button class="btn" onclick="run('${s.id}')">▶ ${esc(s.name)}</button>`).join('') || '<span class="hint">Нет включённых сценариев</span>'}</div>`;
+}
+async function sendText(append) {
+  const v = $('#txt').value; if (!v) return;
+  try { await api('/api/text' + (append ? '?append=1' : ''), { method: 'POST', body: v }); toast('Вписано на ТВ'); }
+  catch (e) { toast(e.message, 5000); }
+}
+async function nav(a) { try { await api('/api/nav?a=' + a, { method: 'POST' }); } catch (e) { toast(e.message, 4000); } }
+async function timer(m) {
+  try { const r = await api('/api/timer?min=' + m, { method: 'POST' }); S.timerLeft = r.left; $('#timerLeft').textContent = r.left ? 'ТВ уснёт через ' + r.left + ' мин' : 'Таймер выключен'; toast(m ? 'Таймер: ' + m + ' мин' : 'Таймер выключен'); }
+  catch (e) { toast(e.message); }
+}
+async function run(id) { try { await api('/api/run?id=' + id, { method: 'POST' }); toast('Запущено на ТВ'); } catch (e) { toast(e.message, 4000); } }
+
+// ---------------------------------------------------------------- Приложения
+function rApps() {
+  const favs = C.favorites.filter(p => S.apps.some(a => a.pkg === p));
+  const q = appFilter.toLowerCase();
+  const list = S.apps.filter(a => !q || appName(a.pkg).toLowerCase().includes(q) || a.pkg.includes(q));
+  $('#t-apps').innerHTML = `
+  <h2>Избранное · порядок на главном экране</h2>
+  <div class="card">${favs.map((p, i) => `
+    <div class="row app">${icon(p)}<div class="grow">${esc(appName(p))}</div>
+      <button class="btn small" ${i ? '' : 'disabled'} onclick="moveFav(${i},-1)">▲</button>
+      <button class="btn small" ${i < favs.length - 1 ? '' : 'disabled'} onclick="moveFav(${i},1)">▼</button>
+      <button class="btn small bad" onclick="toggleFav('${p}')">✕</button></div>`).join('') || '<div class="hint">Пусто — отметьте звёздочкой ниже</div>'}</div>
+
+  <h2>Категории</h2>
+  <div class="card">${C.categories.map((c, i) => `
+    <div class="row"><input type="text" value="${esc(c.name)}" onchange="C.categories[${i}].name=this.value;touch()">
+      <button class="btn small" onclick="catApps=catApps===${i}?null:${i};rApps()">${c.apps.length} прил.</button>
+      <button class="btn small" ${i ? '' : 'disabled'} onclick="moveCat(${i},-1)">▲</button>
+      <button class="btn small bad" onclick="if(confirm('Удалить категорию?')){C.categories.splice(${i},1);touch();rApps()}">✕</button></div>
+    ${catApps === i ? `<div style="max-height:320px;overflow:auto;padding:6px 0">${S.apps.map(a => `
+      <label class="row"><input type="checkbox" ${c.apps.includes(a.pkg) ? 'checked' : ''} onchange="toggleCat(${i},'${a.pkg}',this.checked)">${esc(appName(a.pkg))}</label>`).join('')}</div>` : ''}`).join('')}
+    <div class="row"><button class="btn" onclick="C.categories.push({id:uid(),name:'Категория '+(C.categories.length+1),apps:[]});touch();rApps()">+ Новая категория</button></div></div>
+
+  <h2>Все приложения · ${S.apps.length}</h2>
+  <input type="search" placeholder="Поиск" value="${esc(appFilter)}" oninput="appFilter=this.value;clearTimeout(window._af);window._af=setTimeout(()=>{rApps();const i=$('#t-apps input[type=search]');i.focus();i.setSelectionRange(i.value.length,i.value.length)},250)">
+  <p class="hint">★ — в избранное · глаз — показывать на главном · имя можно поменять</p>
+  <div class="card">${list.map(a => {
+    const hidden = C.hidden.includes(a.pkg), fav = C.favorites.includes(a.pkg);
+    return `<div class="row app ${hidden ? 'muted' : ''}">${icon(a.pkg)}
+      <div class="grow"><input type="text" value="${esc(C.renamed[a.pkg] || a.label)}" onchange="rename('${a.pkg}',this.value)"><div class="hint">${esc(a.pkg)}</div></div>
+      <button class="star ${fav ? 'on' : ''}" onclick="toggleFav('${a.pkg}')">★</button>
+      <input type="checkbox" title="Показывать" ${hidden ? '' : 'checked'} onchange="toggleHidden('${a.pkg}',!this.checked)"></div>`;
+  }).join('')}</div>`;
+}
+let catApps = null;
+function moveFav(i, d) { const f = C.favorites.filter(p => S.apps.some(a => a.pkg === p)); [f[i], f[i + d]] = [f[i + d], f[i]]; C.favorites = f; touch(); rApps(); }
+function toggleFav(p) { C.favorites = C.favorites.includes(p) ? C.favorites.filter(x => x !== p) : [...C.favorites, p]; touch(); rApps(); }
+function toggleHidden(p, h) { C.hidden = h ? [...new Set([...C.hidden, p])] : C.hidden.filter(x => x !== p); if (h) C.favorites = C.favorites.filter(x => x !== p); touch(); rApps(); }
+function rename(p, v) { const a = S.apps.find(x => x.pkg === p); v = v.trim(); if (!v || v === a.label) delete C.renamed[p]; else C.renamed[p] = v; touch(); }
+function moveCat(i, d) { const c = C.categories; [c[i], c[i + d]] = [c[i + d], c[i]]; touch(); rApps(); }
+function toggleCat(i, p, on) { const c = C.categories[i]; c.apps = on ? [...c.apps, p] : c.apps.filter(x => x !== p); touch(); }
+
+// ---------------------------------------------------------------- Сценарии
+const KEYS = { 82: 'Меню', 85: 'Play/Pause', 165: 'Info', 166: 'Канал +', 167: 'Канал −', 170: 'TV', 172: 'Guide', 178: 'Вход', 183: 'Красная', 184: 'Зелёная', 185: 'Жёлтая', 186: 'Синяя', 192: 'Кнопка 192', 7: '0', 8: '1', 9: '2', 10: '3', 11: '4', 12: '5', 13: '6', 14: '7', 15: '8', 16: '9' };
+const PRESS = { SHORT: 'Коротко', LONG: 'Долго', DOUBLE: 'Дважды' };
+const DAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+const ACTIONS = {
+  launch: ['Открыть приложение', { pkg: '' }], input: ['Переключить вход', { inputId: '', label: '' }],
+  volume: ['Громкость', { percent: 30 }], mute: ['Звук вкл/выкл', { on: true }], brightness: ['Яркость', { percent: 50 }],
+  sleep: ['Сон', {}], sleep_timer: ['Таймер сна', { minutes: 60 }], home: ['Домой', {}], back: ['Назад', {}],
+  wait: ['Подождать', { seconds: 2 }], open_settings: ['Открыть настройки', { intentAction: 'android.settings.SOUND_SETTINGS' }],
+  click_text: ['Нажать пункт по тексту', { text: '', timeoutSec: 8 }], setting: ['Системная настройка', { namespace: 'global', key: '', value: '' }],
+  toast: ['Показать сообщение', { text: 'Привет!' }],
+};
+function trigText(t) {
+  switch (t.type) {
+    case 'boot': return `После включения, через ${t.delaySec} с`;
+    case 'key': return `Кнопка ${KEYS[t.keyCode] || t.keyCode} · ${PRESS[t.press]}`;
+    case 'time': return `В ${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')} · ${t.days.length === 7 ? 'каждый день' : t.days.map(d => DAYS[d - 1]).join(', ')}`;
+    default: return 'Вручную';
+  }
+}
+function actText(a) {
+  const n = (ACTIONS[a.type] || [a.type])[0];
+  switch (a.type) {
+    case 'launch': return 'Открыть ' + appName(a.pkg);
+    case 'volume': case 'brightness': return n + ' ' + a.percent + '%';
+    case 'wait': return 'Подождать ' + a.seconds + ' с';
+    case 'click_text': return 'Нажать «' + a.text + '»';
+    case 'sleep_timer': return a.minutes ? 'Таймер сна ' + a.minutes + ' мин' : 'Отменить таймер сна';
+    case 'toast': return 'Показать «' + a.text + '»';
+    case 'mute': return a.on ? 'Выключить звук' : 'Включить звук';
+    case 'input': return 'Вход ' + (a.label || a.inputId);
+    default: return n;
+  }
+}
+function rScn() {
+  if (editing) return rEditor();
+  $('#t-scn').innerHTML = `
+  <div class="btns" style="margin:12px 0"><button class="btn accent" onclick="newScn()">+ Новый сценарий</button></div>
+  ${C.scenarios.map((s, i) => `<div class="card ${s.enabled ? '' : 'muted'}">
+    <div class="scn-head"><input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="C.scenarios[${i}].enabled=this.checked;touch();rScn()">
+      <div class="grow" style="flex:1"><b>${esc(s.name)}</b><div class="hint">${esc(trigText(s.trigger))}</div></div></div>
+    <div class="hint" style="margin:8px 0">${s.actions.map(a => esc(actText(a))).join(' → ') || 'нет действий'}</div>
+    <div class="btns"><button class="btn small" onclick="run('${s.id}')">▶ Запустить</button>
+      <button class="btn small" onclick="editing='${s.id}';rScn()">Изменить</button>
+      <button class="btn small bad" onclick="if(confirm('Удалить «${esc(s.name)}»?')){C.scenarios.splice(${i},1);touch();rScn()}">Удалить</button></div>
+  </div>`).join('')}
+  <p class="hint">«Запустить» выполняет сохранённую на ТВ версию — сначала сохраните изменения.</p>`;
+}
+function newScn() { const s = { id: uid(), name: 'Новый сценарий', enabled: true, trigger: { type: 'manual' }, actions: [] }; C.scenarios.push(s); editing = s.id; touch(); rScn(); }
+function scn() { return C.scenarios.find(s => s.id === editing); }
+function setTrig(type) {
+  const s = scn();
+  s.trigger = ({ boot: { type, delaySec: 10 }, key: { type, keyCode: 183, press: 'LONG' }, time: { type, hour: 21, minute: 0, days: [1, 2, 3, 4, 5, 6, 7] }, manual: { type } })[type];
+  touch(); rEditor();
+}
+function rEditor() {
+  const s = scn(); if (!s) { editing = null; return rScn(); }
+  const t = s.trigger;
+  let trig = '';
+  if (t.type === 'boot') trig = `<label class="hint">Через, секунд</label><input type="number" min="0" value="${t.delaySec}" onchange="scn().trigger.delaySec=+this.value;touch()">`;
+  if (t.type === 'key') trig = `<div class="grid2"><div><label class="hint">Код кнопки</label><input type="number" list="keys" value="${t.keyCode}" onchange="scn().trigger.keyCode=+this.value;touch()"></div>
+      <div><label class="hint">Нажатие</label><select onchange="scn().trigger.press=this.value;touch()">${Object.entries(PRESS).map(([k, v]) => `<option value="${k}" ${k === t.press ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>
+      <datalist id="keys">${Object.entries(KEYS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</datalist>
+      <p class="hint">Код своей кнопки: на ТВ Настройки → Отладка → «Записывать нажатия», нажмите кнопку и откройте журнал.</p>`;
+  if (t.type === 'time') trig = `<input type="time" value="${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')}" onchange="const [h,m]=this.value.split(':');scn().trigger.hour=+h;scn().trigger.minute=+m;touch()">
+      <div class="days" style="margin-top:8px">${DAYS.map((d, i) => `<label><input type="checkbox" ${t.days.includes(i + 1) ? 'checked' : ''} onchange="toggleDay(${i + 1},this.checked)">${d}</label>`).join('')}</div>`;
+  $('#t-scn').innerHTML = `
+  <div class="btns" style="margin:12px 0"><button class="btn" onclick="editing=null;rScn()">← К списку</button></div>
+  <div class="card">
+    <label class="hint">Название</label><input type="text" value="${esc(s.name)}" onchange="scn().name=this.value;touch()">
+    <label class="row"><input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="scn().enabled=this.checked;touch()">Включён</label>
+  </div>
+  <h2>Когда</h2>
+  <div class="card"><select onchange="setTrig(this.value)">${[['manual', 'Вручную'], ['boot', 'После включения ТВ'], ['key', 'Кнопка пульта'], ['time', 'По времени']].map(([k, v]) => `<option value="${k}" ${k === t.type ? 'selected' : ''}>${v}</option>`).join('')}</select>
+    <div style="margin-top:8px">${trig}</div></div>
+  <h2>Что делать</h2>
+  <div class="card">${s.actions.map((a, i) => actEditor(a, i, s.actions.length)).join('') || '<div class="hint">Добавьте первое действие</div>'}
+    <div style="margin-top:10px"><select onchange="if(this.value){addAct(this.value)}"><option value="">+ Добавить действие…</option>${Object.entries(ACTIONS).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join('')}</select></div></div>`;
+}
+function toggleDay(d, on) { const t = scn().trigger; t.days = on ? [...new Set([...t.days, d])].sort() : t.days.filter(x => x !== d); touch(); }
+function addAct(type) { scn().actions.push({ type, ...JSON.parse(JSON.stringify(ACTIONS[type][1])) }); touch(); rEditor(); }
+function moveAct(i, d) { const a = scn().actions; [a[i], a[i + d]] = [a[i + d], a[i]]; touch(); rEditor(); }
+function setA(i, k, v) { scn().actions[i][k] = v; touch(); }
+function actEditor(a, i, n) {
+  const num = (k, min, max, step = 1) => `<input type="number" min="${min}" max="${max}" step="${step}" value="${a[k]}" onchange="setA(${i},'${k}',+this.value)">`;
+  const txt = (k, ph = '') => `<input type="text" class="full" placeholder="${ph}" value="${esc(a[k])}" onchange="setA(${i},'${k}',this.value)">`;
+  let f = '';
+  switch (a.type) {
+    case 'launch': f = `<select class="full" onchange="setA(${i},'pkg',this.value)"><option value="">— приложение —</option>${S.apps.map(x => `<option value="${x.pkg}" ${x.pkg === a.pkg ? 'selected' : ''}>${esc(appName(x.pkg))}</option>`).join('')}</select>`; break;
+    case 'input': f = `<select class="full" onchange="const o=this.selectedOptions[0];setA(${i},'inputId',this.value);setA(${i},'label',o.textContent)"><option value="">— вход —</option>${S.inputs.map(x => `<option value="${esc(x.id)}" ${x.id === a.inputId ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>`; break;
+    case 'volume': case 'brightness': f = `<div class="full">${num('percent', 0, 100, 5)}</div>`; break;
+    case 'mute': f = `<select class="full" onchange="setA(${i},'on',this.value==='1')"><option value="1" ${a.on ? 'selected' : ''}>Выключить звук</option><option value="0" ${a.on ? '' : 'selected'}>Включить звук</option></select>`; break;
+    case 'wait': f = `<div class="full">${num('seconds', 1, 600)}</div>`; break;
+    case 'sleep_timer': f = `<div class="full">${num('minutes', 0, 600, 5)}<div class="hint">0 — отменить таймер</div></div>`; break;
+    case 'open_settings': f = txt('intentAction', 'android.settings.SOUND_SETTINGS'); break;
+    case 'click_text': f = txt('text', 'Текст пункта на экране') + num('timeoutSec', 1, 60); break;
+    case 'setting': f = `<select onchange="setA(${i},'namespace',this.value)">${['global', 'secure', 'system'].map(x => `<option ${x === a.namespace ? 'selected' : ''}>${x}</option>`).join('')}</select>${txt('key', 'ключ')}${txt('value', 'значение')}`; break;
+    case 'toast': f = txt('text'); break;
+  }
+  return `<div class="act"><b>${i + 1}. ${esc((ACTIONS[a.type] || [a.type])[0])}</b>
+    <div class="btns"><button class="btn small" ${i ? '' : 'disabled'} onclick="moveAct(${i},-1)">▲</button><button class="btn small" ${i < n - 1 ? '' : 'disabled'} onclick="moveAct(${i},1)">▼</button>
+    <button class="btn small bad" onclick="scn().actions.splice(${i},1);touch();rEditor()">✕</button></div>
+    ${f ? `<div class="fields">${f}</div>` : ''}</div>`;
+}
+
+// ---------------------------------------------------------------- Обои
+let wallTarget = 'main';
+function curWall() { return wallTarget === 'main' ? C.wallpaperPath : C.timeWallpapers[wallTarget]; }
+function rWall() {
+  const cur = curWall();
+  const tile = (path, name, bg, del) => `<div class="wall ${path === cur ? 'sel' : ''}" style="${bg ? `background-image:url('${bg}')` : ''}" onclick='pickWall(${JSON.stringify(path)})'><span>${esc(name)}</span>${del ? `<button class="del" onclick='event.stopPropagation();delWall(${JSON.stringify(path)})'>✕</button>` : ''}</div>`;
+  $('#t-wall').innerHTML = `
+  <h2>Куда ставим</h2>
+  <select onchange="wallTarget=this.value;rWall()">
+    <option value="main" ${wallTarget === 'main' ? 'selected' : ''}>Общие обои</option>
+    ${S.timeSlots.map(s => `<option value="${s.id}" ${wallTarget === s.id ? 'selected' : ''}>${s.name}${C.wallpaperByTime ? '' : ' (включите «по времени суток»)'}</option>`).join('')}
+  </select>
+  <h2>Загрузить с телефона</h2>
+  <div class="card"><input type="file" accept="image/*" id="wallFile" onchange="uploadWall(this.files[0])"><div class="hint" id="upState">Фото уменьшится под экран ТВ само.</div></div>
+  <h2>Выбрать</h2>
+  <div class="walls">
+    ${wallTarget === 'main' ? tile(null, 'Без обоев', '') : tile(null, 'Как общие', '')}
+    ${S.scenes.map(s => tile(s.id, '✦ ' + s.name, '')).join('')}
+    ${S.wallpapers.map(w => tile(w.path, w.name, `/api/thumb?path=${encodeURIComponent(w.path)}&pin=${PIN}`, w.uploaded)).join('')}
+  </div>
+  <h2>Настройки</h2>
+  <div class="card">
+    <div class="row"><div class="grow">Затемнение ${C.wallpaperDim}%</div></div>
+    <input type="range" min="0" max="90" step="10" value="${C.wallpaperDim}" oninput="C.wallpaperDim=+this.value;this.parentNode.querySelector('.grow').textContent='Затемнение '+this.value+'%';touch()">
+    ${chk('weatherOnWallpaper', 'Погода на обоях', 'Дождь, снег, туман и молнии по реальной погоде')}
+    ${chk('wallpaperByTime', 'Обои по времени суток', 'Утро, день, вечер, ночь', 'rWall()')}
+  </div>`;
+}
+function pickWall(p) {
+  if (wallTarget === 'main') C.wallpaperPath = p;
+  else { if (p == null) delete C.timeWallpapers[wallTarget]; else C.timeWallpapers[wallTarget] = p; }
+  touch(); rWall();
+}
+async function uploadWall(file) {
+  if (!file) return;
+  $('#upState').textContent = 'Загружаю ' + Math.round(file.size / 1024) + ' КБ…';
+  try {
+    const r = await api('/api/wallpaper?name=' + encodeURIComponent(file.name), { method: 'POST', body: file });
+    const st = await api('/api/state'); S.wallpapers = st.wallpapers;
+    pickWall(r.path); toast('Загружено — не забудьте сохранить');
+  } catch (e) { $('#upState').textContent = 'Ошибка: ' + e.message; }
+}
+async function delWall(p) {
+  if (!confirm('Удалить картинку с ТВ?')) return;
+  try { await api('/api/wallpaper/delete?path=' + encodeURIComponent(p), { method: 'POST' }); await load(); } catch (e) { toast(e.message); }
+}
+
+// ---------------------------------------------------------------- Настройки
+function chk(k, label, hint = '', after = '') {
+  return `<label class="row"><div class="grow">${label}${hint ? `<div class="hint">${hint}</div>` : ''}</div><input type="checkbox" ${C[k] ? 'checked' : ''} onchange="C.${k}=this.checked;touch();${after}"></label>`;
+}
+function numIn(k, label, min, max, step = 1) {
+  return `<div class="row"><div class="grow">${label}</div><input type="number" style="width:96px" min="${min}" max="${max}" step="${step}" value="${C[k]}" onchange="C.${k}=Math.min(${max},Math.max(${min},+this.value));touch()"></div>`;
+}
+function sel(k, label, opts) {
+  return `<div class="row"><div class="grow">${label}</div><select style="width:55%" onchange="C.${k}=isNaN(this.value)||this.value===''?this.value:+this.value;touch()">${opts.map(o => `<option value="${o.id}" ${String(o.id) === String(C[k]) ? 'selected' : ''}>${esc(o.name)}</option>`).join('')}</select></div>`;
+}
+function rSet() {
+  $('#t-set').innerHTML = `
+  <h2>Маскот</h2><div class="card">
+    ${sel('mascot', 'Кто живёт', S.mascots)}
+    ${chk('mascotEnabled', 'Показывать')}${chk('mascotSpeaks', 'Разговаривает')}
+    ${sel('mascotChatter', 'Болтливость', ['молчит', 'редко', 'обычно', 'болтун'].map((n, i) => ({ id: i, name: n })))}
+    ${chk('talkFacts', 'Факты')}${chk('talkHolidays', 'Праздники')}${chk('talkNews', 'Новости', 'Заголовки Ленты.ру')}
+    ${chk('mascotNamesApps', 'Называть приложение в фокусе')}${chk('greeting', 'Приветствие при запуске')}
+    ${numIn('mascotSleepMinutes', 'Засыпает через, мин', 1, 60)}${numIn('mascotScale', 'Размер', 2, 6)}
+  </div>
+  <h2>Внешний вид</h2><div class="card">
+    ${sel('font', 'Шрифт', S.fonts)}
+    <div class="row"><div class="grow">Акцент</div></div><div class="swatches">${S.accents.map(c => `<button class="sw ${c === C.accent ? 'sel' : ''}" style="background:${hex(c)}" onclick="C.accent=${c};touch();document.documentElement.style.setProperty('--accent','${hex(c)}');rSet()"></button>`).join('')}</div>
+    <div class="row"><div class="grow">Фон</div></div><div class="swatches">${S.backgrounds.map(c => `<button class="sw ${c === C.background ? 'sel' : ''}" style="background:${hex(c)}" onclick="C.background=${c};touch();rSet()"></button>`).join('')}</div>
+    ${chk('animations', 'Анимации')}
+    ${sel('screenTransition', 'Переход между экранами', S.transitions)}
+    ${numIn('focusScale', 'Увеличение в фокусе, %', 0, 15)}${numIn('pixelBorder', 'Толщина рамки', 1, 8)}
+    <div class="row"><div class="grow">Эффекты наведения</div></div>
+    ${S.effects.map(e => `<label class="row"><div class="grow">${esc(e.name)}</div><input type="checkbox" ${C.focusEffects.includes(e.id) ? 'checked' : ''} onchange="C.focusEffects=this.checked?[...new Set([...C.focusEffects,'${e.id}'])]:C.focusEffects.filter(x=>x!=='${e.id}');touch()"></label>`).join('')}
+  </div>
+  <h2>Главный экран</h2><div class="card">
+    ${numIn('columns', 'Колонок во «Все приложения»', 3, 10)}${numIn('cardSize', 'Размер карточек, %', 60, 160, 10)}
+    ${chk('showLabels', 'Подписи под карточками')}${chk('preferBanners', 'Баннеры приложений')}
+    ${chk('clock24h', '24-часовой формат')}${chk('showSeconds', 'Секунды')}${chk('showDate', 'Дата')}
+    ${chk('showFavorites', 'Ряд «Избранное»')}${chk('showInputs', 'Ряд «Входы»')}${chk('showCategories', 'Категории')}${chk('showAllApps', 'Все приложения')}
+    ${chk('showManualScenarios', 'Кнопки ручных сценариев')}
+    ${chk('showWidgets', 'Виджеты под часами')}
+    ${S.widgets.map(w => `<label class="row"><div class="grow">&nbsp;&nbsp;${esc(w.name)}</div><input type="checkbox" ${C.widgets.includes(w.id) ? 'checked' : ''} onchange="C.widgets=this.checked?[...C.widgets,'${w.id}']:C.widgets.filter(x=>x!=='${w.id}');touch()"></label>`).join('')}
+  </div>
+  <h2>Погода</h2><div class="card">
+    ${chk('weatherEnabled', 'Показывать погоду')}
+    <div class="row"><div class="grow">Город: <b>${esc(C.weatherCity || 'не выбран')}</b></div></div>
+    <div class="row"><input type="text" id="cityQ" placeholder="Название города"><button class="btn" onclick="findCity()">Найти</button></div>
+    <div id="cities"></div>
+    <div class="row"><div class="grow">Ключ Яндекс Погоды: ${C.yandexWeatherKey === '__keep__' ? (S.hasYandexKey ? 'задан' : 'нет') : (C.yandexWeatherKey ? 'новый' : 'будет удалён')}</div></div>
+    <div class="row"><input type="password" placeholder="Вставьте новый ключ" onchange="if(this.value.trim()){C.yandexWeatherKey=this.value.trim();touch();rSet()}">
+      <button class="btn small bad" onclick="C.yandexWeatherKey='';touch();rSet()">Удалить</button></div>
+    <p class="hint">Без ключа погода берётся у Open-Meteo.</p>
+  </div>
+  <h2>С телефона</h2><div class="card">
+    ${chk('webPanel', 'Настройка с телефона', 'Выключите — эта страница перестанет открываться до включения на ТВ')}
+    <div class="row"><div class="grow">PIN</div><input type="text" inputmode="numeric" style="width:120px" value="${esc(C.webPin)}" onchange="C.webPin=this.value.trim();touch()"></div>
+  </div>
+  <h2>Резервная копия</h2><div class="card btns">
+    <button class="btn" onclick="backup()">Скачать настройки</button>
+    <label class="btn">Загрузить из файла<input type="file" accept=".json,application/json" style="display:none" onchange="restore(this.files[0])"></label>
+  </div>`;
+}
+async function findCity() {
+  const q = $('#cityQ').value.trim(); if (!q) return;
+  try {
+    const list = await api('/api/city?q=' + encodeURIComponent(q));
+    $('#cities').innerHTML = list.length ? list.map((p, i) => `<div class="row"><div class="grow">${esc(p.name)}<div class="hint">${esc(p.region)}</div></div><button class="btn small" onclick='setCity(${JSON.stringify(p)})'>Выбрать</button></div>`).join('') : '<div class="hint">Не нашёл</div>';
+  } catch (e) { toast(e.message); }
+}
+function setCity(p) { C.weatherCity = p.name; C.weatherLat = p.lat; C.weatherLon = p.lon; touch(); rSet(); toast('Город: ' + p.name + ' — сохраните'); }
+function backup() {
+  const c = { ...C }; delete c.yandexWeatherKey;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(c, null, 2)], { type: 'application/json' }));
+  a.download = 'pixeltv-backup.json'; a.click();
+}
+async function restore(f) {
+  if (!f) return;
+  try { const c = JSON.parse(await f.text()); if (!c.scenarios) throw new Error('это не файл настроек PixelTv'); C = { ...C, ...c, yandexWeatherKey: c.yandexWeatherKey || '__keep__' }; touch(); render(); toast('Загружено — нажмите «Сохранить на ТВ»'); }
+  catch (e) { toast(e.message, 4000); }
+}
+
+// ---------------------------------------------------------------- ТВ
+const GB = b => (b / 1073741824).toFixed(1);
+async function rTv() {
+  $('#t-tv').innerHTML = '<p class="hint">Загружаю…</p>';
+  let h;
+  try { h = await api('/api/health'); } catch (e) { $('#t-tv').innerHTML = `<p class="hint">${esc(e.message)}</p>`; return; }
+  const used = h.ramTotal - h.ramAvail, disk = h.storageTotal - h.storageFree;
+  const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'только что' : m < 60 ? m + ' мин назад' : Math.round(m / 60) + ' ч назад'; };
+  $('#t-tv').innerHTML = `
+  <h2>Здоровье</h2>
+  <div class="card">
+    <div class="row"><div class="grow">Оперативная память${h.lowMemory ? ' · <span style="color:var(--bad)">мало</span>' : ''}</div>${GB(used)} / ${GB(h.ramTotal)} ГБ</div>
+    <div class="bar"><i style="width:${used / h.ramTotal * 100}%"></i></div>
+    <div class="row"><div class="grow">PixelTv занимает</div>${Math.round(h.launcherPss / 1048576)} МБ</div>
+    <div class="row"><div class="grow">Место для приложений</div>свободно ${GB(h.storageFree)} из ${GB(h.storageTotal)} ГБ</div>
+    <div class="bar"><i style="width:${disk / h.storageTotal * 100}%"></i></div>
+    <div class="row"><div class="grow">Температура</div>${h.tempC != null ? Math.round(h.tempC) + '°C' : 'нет датчика'}</div>
+    <div class="row"><div class="grow">Без перезагрузки</div>${Math.floor(h.uptimeMs / 3600000)} ч ${Math.floor(h.uptimeMs / 60000) % 60} мин</div>
+    <div class="btns" style="margin-top:10px"><button class="btn accent" onclick="freeMem(this)">Освободить память</button><button class="btn" onclick="rTv()">Обновить</button></div>
+  </div>
+  <h2>Недавно открытые</h2>
+  <div class="card">${!h.usageAccess ? '<div class="hint">Нужен доступ: adb shell appops set com.pixelden.launcher GET_USAGE_STATS allow</div>' :
+    h.recent.map(r => `<div class="row app">${icon(r.pkg)}<div class="grow">${esc(r.label)}<div class="hint">${ago(r.lastUsed)} · на экране ${Math.round(r.fgMs / 60000)} мин</div></div></div>`).join('') || '<div class="hint">Пусто</div>'}</div>
+  <h2>Обновить PixelTv</h2>
+  <div class="card"><p class="hint">Выберите APK — на ТВ появится окно подтверждения установки. Подойдёт и любое другое приложение.</p>
+    <input type="file" accept=".apk,application/vnd.android.package-archive" onchange="sendApk(this.files[0])"><div class="hint" id="apkState"></div></div>
+  <h2>Журнал</h2>
+  <div class="card"><button class="btn small" onclick="showLog()">Показать журнал</button><pre id="log" style="display:none"></pre></div>`;
+}
+async function freeMem(b) { b.disabled = true; b.textContent = 'Освобождаю…'; try { const r = await api('/api/free', { method: 'POST' }); toast('Освобождено ' + r.freedMb + ' МБ'); } catch (e) { toast(e.message); } rTv(); }
+async function sendApk(f) {
+  if (!f) return;
+  $('#apkState').textContent = 'Отправляю ' + (f.size / 1048576).toFixed(1) + ' МБ…';
+  try { await api('/api/apk', { method: 'POST', body: f }); $('#apkState').textContent = 'Готово — подтвердите установку на ТВ пультом.'; }
+  catch (e) { $('#apkState').textContent = 'Ошибка: ' + e.message; }
+}
+async function showLog() { const p = $('#log'); p.style.display = 'block'; try { p.textContent = await api('/api/log'); p.scrollTop = p.scrollHeight; } catch (e) { p.textContent = e.message; } }
+
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+if (PIN) load(); else showPin();
+</script>
+</body>
+</html>
