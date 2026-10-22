@@ -70,7 +70,7 @@ data class LauncherConfig(
     val showAllApps: Boolean = true,
     /** Кнопки запуска ручных сценариев под шапкой. */
     val showManualScenarios: Boolean = false,
-    /** Ряд виджетов под шапкой и их порядок: calendar, rates, timer, health. */
+    /** Ряд виджетов под шапкой и их порядок: rates, timer, health. */
     val showWidgets: Boolean = true,
     val widgets: List<String> = listOf("calendar", "rates", "timer", "health"),
 
@@ -93,7 +93,7 @@ data class LauncherConfig(
 )
 
 object Defaults {
-    const val VERSION = 5
+    const val VERSION = 7
 
     /** Пустышки обязательной предустановки и системные пакеты, которым не место на главном экране. */
     val JUNK = listOf(
@@ -116,6 +116,8 @@ object Defaults {
         if (c.defaultsVersion < 4) c = c.copy(focusEffects = (listOf("scale") + c.focusEffect).distinct())
         // v5: PIN для настройки с телефона.
         if (c.webPin.isBlank()) c = c.copy(webPin = newPin())
+        // v7: плитка праздников вернулась (v6 её убирал) — ставим первой.
+        if (c.defaultsVersion < 7 && "calendar" !in c.widgets) c = c.copy(widgets = listOf("calendar") + c.widgets)
         return c.copy(defaultsVersion = VERSION)
     }
 

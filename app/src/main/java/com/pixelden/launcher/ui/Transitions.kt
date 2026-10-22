@@ -42,8 +42,8 @@ fun <S> AnimatedContentTransitionScope<S>.softTransition(mode: String): ContentT
  * [progress] 0 — ничего не закрыто, 1 — экран закрыт целиком. [seed] меняет порядок квадратов от раза к разу.
  */
 @Composable
-fun PixelCoverOverlay(progress: Float, seed: Int, color: Color) {
-    if (progress <= 0f) return
+fun PixelCoverOverlay(progress: () -> Float, seed: Int, color: Color) {
+    // Прогресс читаем только при рисовании: шторка перерисовывается, а экран под ней не пересобирается.
     val cols = 32
     val rows = 18
     val order = remember(seed) {
@@ -51,10 +51,12 @@ fun PixelCoverOverlay(progress: Float, seed: Int, color: Color) {
         FloatArray(cols * rows) { r.nextFloat() }
     }
     Canvas(Modifier.fillMaxSize()) {
+        val p = progress()
+        if (p <= 0f) return@Canvas
         val cw = size.width / cols
         val ch = size.height / rows
         for (i in order.indices) {
-            if (order[i] >= progress) continue
+            if (order[i] >= p) continue
             val x = i % cols
             val y = i / cols
             drawRect(color, Offset(x * cw, y * ch), Size(cw + 1f, ch + 1f))

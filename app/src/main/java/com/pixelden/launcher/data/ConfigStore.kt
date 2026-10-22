@@ -32,10 +32,17 @@ class ConfigStore(private val context: Context) {
         LauncherConfig()
     }
 
+    // Запись на диск — в отдельном потоке: каждое нажатие < > в настройках раньше ждало флеш-память ТВ.
+    private val writer = java.util.concurrent.Executors.newSingleThreadExecutor()
+
     private fun save(cfg: LauncherConfig) {
-        val tmp = File(context.filesDir, "config.json.tmp")
-        tmp.writeText(json.encodeToString(LauncherConfig.serializer(), cfg))
-        tmp.renameTo(file)
+        writer.execute {
+            // Пока ждали очереди, могли прийти новые правки — пишем только самую свежую.
+            if (cfg !== _config.value) return@execute
+            val tmp = File(context.filesDir, "config.json.tmp")
+            tmp.writeText(json.encodeToString(LauncherConfig.serializer(), cfg))
+            tmp.renameTo(file)
+        }
     }
 
     fun exportFile(): File =

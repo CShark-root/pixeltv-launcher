@@ -84,10 +84,17 @@ private val tiny5 = FontFamily(Font(R.font.tiny5))
 private val press = FontFamily(Font(R.font.press_start_2p))
 
 // Handjet — переменный шрифт; берём полужирное начертание, оно читается на ТВ лучше всего.
-@OptIn(ExperimentalTextApi::class)
-private val handjet = FontFamily(
-    Font(R.font.handjet, weight = FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600)))
-)
+// Готовый Typeface с толщиной 600 собираем один раз сами: с Font(variationSettings) текст на этом ТВ
+// рисовался заметно медленнее (90-й перцентиль кадра в настройках ~100 мс).
+private val handjet: FontFamily by lazy {
+    val ctx = com.pixelden.launcher.PixelDenApp.instance
+    runCatching {
+        val file = java.io.File(ctx.cacheDir, "handjet.ttf")
+        if (!file.exists()) ctx.resources.openRawResource(R.font.handjet).use { i -> file.outputStream().use { i.copyTo(it) } }
+        val tf = android.graphics.Typeface.Builder(file).setFontVariationSettings("'wght' 600").build()
+        FontFamily(androidx.compose.ui.text.font.Typeface(tf))
+    }.getOrElse { FontFamily(Font(R.font.handjet)) }
+}
 
 fun themeFrom(cfg: LauncherConfig): DenTheme {
     val bg = Color(cfg.background)

@@ -357,7 +357,16 @@ class WebServer(private val app: PixelDenApp) {
         const val KEEP = "__keep__"
 
         /** Адрес ТВ в домашней сети (Wi-Fi или кабель). */
-        fun lanAddress(): String? = runCatching {
+        // Перебор сетевых интерфейсов не бесплатный, а плитка настроек спрашивает адрес на каждой перерисовке.
+        @Volatile private var cached: Pair<Long, String?>? = null
+
+        fun lanAddress(): String? {
+            val c = cached
+            if (c != null && android.os.SystemClock.elapsedRealtime() - c.first < 30_000) return c.second
+            return readLanAddress().also { cached = android.os.SystemClock.elapsedRealtime() to it }
+        }
+
+        private fun readLanAddress(): String? = runCatching {
             NetworkInterface.getNetworkInterfaces().toList()
                 .filter { it.isUp && !it.isLoopback }
                 .flatMap { it.inetAddresses.toList() }

@@ -91,7 +91,10 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
     var pickWallpaper by remember { mutableStateOf(false) }
     var pickSlot by remember { mutableStateOf<String?>(null) }
     var tvBacklight by remember { mutableStateOf(readBacklight(context)) }
-    val wallpapers = remember { listWallpapers() }
+    // Сканирование папок с картинками — в фоне и только на странице оформления.
+    val wallpapers by produceState(emptyList<String>(), page) {
+        if (page == "look") value = withContext(Dispatchers.IO) { listWallpapers() }
+    }
 
     fun set(f: (LauncherConfig) -> LauncherConfig) = store.update(f)
 
@@ -407,19 +410,13 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
 
             if (page == "widgets") {
                 item { ToggleRow("Ряд виджетов под часами", cfg.showWidgets) { v -> set { it.copy(showWidgets = v) }; if (v) app.rates.start() } }
-                item { PText("OK — показать или скрыть · < > — порядок", 14.sp, t.colors.dim, Modifier.padding(4.dp, 6.dp, 0.dp, 8.dp)) }
-                val order = cfg.widgets + WIDGETS.map { it.first }.filter { it !in cfg.widgets }
-                items(order, key = { "w$it" }) { id ->
-                    val on = id in cfg.widgets
-                    SettingRow(
-                        WIDGETS.firstOrNull { it.first == id }?.second ?: id, if (on) "ВКЛ" else "ВЫКЛ",
-                        onLeft = { if (on) set { it.copy(widgets = it.widgets.moveItem(id, -1)) } },
-                        onRight = { if (on) set { it.copy(widgets = it.widgets.moveItem(id, 1)) } },
-                        onClick = {
-                            set { it.copy(widgets = if (on) it.widgets - id else it.widgets + id) }
-                            if (!on && id == "rates") app.rates.start()
-                        },
-                    )
+                // Порядок строк постоянный — переключение не двигает строку и не уводит фокус.
+                items(WIDGETS, key = { "w" + it.first }) { (id, name) ->
+                    ToggleRow(name, id in cfg.widgets) { on ->
+                        // Новый виджет встаёт на своё место из общего списка, а не в конец.
+                        set { c -> c.copy(widgets = WIDGETS.map { it.first }.filter { w -> if (w == id) on else w in c.widgets }) }
+                        if (on && id == "rates") app.rates.start()
+                    }
                 }
             }
 

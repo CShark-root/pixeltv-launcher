@@ -139,7 +139,7 @@ fun HomeScreen(
     }
 
     Box(Modifier.fillMaxSize().background(t.colors.bg)) {
-        Backdrop(cfg)
+        Backdrop(cfg, paused = { listState.isScrollInProgress })
 
         LazyColumn(
             Modifier.fillMaxSize(),

@@ -36,6 +36,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -65,13 +68,13 @@ val SECTIONS = listOf(
         "..#####..", "..#+++#..", "..#+++#..", "..#+++#..", "..#+++#..", "..#+++#..", "..##+##..", "..#####..", ".........",
     )) { if (it.cfg.webPanel) "${com.pixelden.launcher.web.WebServer.lanAddress() ?: "нет сети"}:${com.pixelden.launcher.web.WebServer.PORT} · PIN ${it.cfg.webPin}" else "выключено" },
     Section("look", "Внешний вид", listOf(
-        "..#####..", ".#+++++#.", "#+#+#+#+#", "#+++++++#", "#+#+###+#", "#++++#++#", ".#++#+#+.", "..####...", ".........",
+        "..#####..", ".#+++++#.", "#+#+++#+#", "#+++++++#", "#+#+++##.", "#+++++#..", ".#+++++#.", "..#####..", ".........",
     )) { (FONTS.firstOrNull { f -> f.first == it.cfg.font } ?: FONTS.first()).second + (sceneName(it.cfg.wallpaperPath)?.let { s -> " · $s" } ?: if (it.cfg.wallpaperPath != null) " · обои" else "") },
     Section("effects", "Эффекты наведения", listOf(
         "....#....", "....#....", "..#.#.#..", "...###...", "#########", "...###...", "..#.#.#..", "....#....", "....#....",
     )) { s -> s.cfg.focusEffects.mapNotNull { id -> FOCUS_EFFECTS.firstOrNull { it.first == id }?.second?.removePrefix("Только ") }.joinToString(", ").ifEmpty { "нет" } },
     Section("weather", "Погода", listOf(
-        ".y.y.....", "..yyy....", "yyyyy....", "..y#####.", ".#++++++#", "#++++++++", "#++++++++", ".########", ".........",
+        "y.y.y....", ".yyy.....", "yyyyy....", ".yyy###..", "y.##+++#.", ".#++++++#", "#+++++++#", ".#######.", ".........",
     )) { it.cfg.weatherCity?.let { c -> if (it.cfg.yandexWeatherKey.isBlank()) "$c · Open-Meteo" else "$c · Яндекс" } ?: "город не выбран" },
     Section("tv", "Телевизор", listOf(
         "..+...+..", "...+.+...", "#########", "#+++++++#", "#+++++++#", "#+++++++#", "#########", "...#.#...", "..#####..",
@@ -98,7 +101,7 @@ val SECTIONS = listOf(
         "###......", "#++####..", "#+++++##.", "#++++++#.", "#++++++#.", "#++++++#.", "########.", ".........", ".........",
     )) { "${it.cfg.categories.size}" },
     Section("hidden", "Скрытые приложения", listOf(
-        "........#", "..####.#.", ".#++++#..", "#++##+#+#", "#+#+#++#.", ".#+#++#..", "..####...", ".#.......", "#........",
+        "........#", "...###.#.", ".##+++#..", "#++###.+#", "#++##.++#", "#++#.#++#", ".##.++##.", ".#.###...", "#........",
     )) { "скрыто ${it.cfg.hidden.size} · всего ${it.appsCount}" },
     Section("perm", "Права и службы", listOf(
         "..###....", ".#+++#...", ".#+.+#...", ".#+++#...", "..###....", "...#.....", "...###...", "...#.....", "...##....",
@@ -119,15 +122,21 @@ private var lastSection: String? = null
 
 @Composable
 fun PixelIcon(grid: List<String>, pixel: Int, accent: Color, light: Color, modifier: Modifier = Modifier, sun: Color = Color(0xFFFFD25A)) {
-    Canvas(modifier.size((9 * pixel).dp)) {
-        // Целое число экранных точек на пиксель иконки — без просветов-сетки между пикселями.
-        val p = pixel.dp.roundToPx().toFloat()
+    // Иконка — картинка 9×9, растянутая без сглаживания: квадратики не расходятся швами при масштабе
+    // и рисуются одной командой, а не десятками прямоугольников.
+    val img = remember(grid, accent, light, sun) {
+        val w = grid.maxOf { it.length }
+        val px = IntArray(w * grid.size)
         grid.forEachIndexed { y, row ->
             row.forEachIndexed { x, ch ->
-                val c = when (ch) { '#' -> accent; '+' -> light; 'y' -> sun; else -> null } ?: return@forEachIndexed
-                drawRect(c, Offset(x * p, y * p), Size(p, p))
+                val c = when (ch) { '#' -> accent; '+' -> light; 'y' -> sun; else -> null }
+                if (c != null) px[y * w + x] = c.toArgb()
             }
         }
+        android.graphics.Bitmap.createBitmap(px, w, grid.size, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+    }
+    Canvas(modifier.size((9 * pixel).dp)) {
+        drawImage(img, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()), filterQuality = androidx.compose.ui.graphics.FilterQuality.None)
     }
 }
 
@@ -185,7 +194,6 @@ private fun SectionTile(s: Section, ctx: SummaryCtx, width: Dp, autoFocus: Boole
         Modifier
             .width(width)
             .focusRequester(fr)
-            .graphicsLayer { val k = 1f + 0.04f * p; scaleX = k; scaleY = k }
             .tvClickable(onFocus = { focused = it }, onClick = onClick)
             .pixelBox(Color.Transparent, if (focused) t.colors.surfaceHi else t.colors.surface, t.border)
             .drawWithContent {
@@ -198,7 +206,8 @@ private fun SectionTile(s: Section, ctx: SummaryCtx, width: Dp, autoFocus: Boole
         PixelIcon(
             s.icon, 5,
             accent = if (focused) t.colors.accent else t.colors.text.copy(alpha = 0.75f),
-            light = if (focused) t.colors.text else t.colors.surfaceHi,
+            // Светлые детали без фокуса — приглушённый текст, а не цвет плитки: иначе они сливаются с фоном.
+            light = if (focused) t.colors.text else t.colors.text.copy(alpha = 0.32f).compositeOver(t.colors.surface),
         )
         Column(Modifier.padding(start = 18.dp)) {
             PText(s.title, 20.sp, if (focused) t.colors.text else t.colors.text.copy(alpha = 0.85f))

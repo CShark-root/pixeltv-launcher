@@ -38,8 +38,10 @@ class EdgeScrollSpec(
             size > end - start -> offset - start
             // ушёл за верхний край зоны — поставить его на [land] от верха
             offset < start -> offset - containerSize * land
-            // ушёл за нижний край — поставить его конец на [land] от низа
-            itemEnd > end -> itemEnd - containerSize * (1 - land)
+            // вылез за низ экрана — поставить его конец на [land] от низа.
+            // Снизу ждём, пока элемент реально не влезет: иначе верхние ряды (избранное под шапкой
+            // и виджетами) попадали в зону и прокрутка спорила с возвратом к шапке — фокус скакал.
+            itemEnd > containerSize -> itemEnd - containerSize * (1 - land)
             else -> 0f
         }
     }

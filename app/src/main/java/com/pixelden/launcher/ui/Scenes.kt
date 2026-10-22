@@ -83,7 +83,7 @@ fun decodeSampled(path: String, maxW: Int, maxH: Int): Bitmap? {
 
 /** Фон главного экрана: обои или сцена, затемнение и погода поверх. */
 @Composable
-fun Backdrop(cfg: LauncherConfig) {
+fun Backdrop(cfg: LauncherConfig, paused: () -> Boolean = { false }) {
     val hour by produceState(currentHour()) {
         while (true) { delay(60_000); value = currentHour() }
     }
@@ -94,11 +94,11 @@ fun Backdrop(cfg: LauncherConfig) {
 
     when {
         path == null -> Unit
-        path.startsWith("scene:") -> LiveScene(path, hour, sky, animate)
+        path.startsWith("scene:") -> LiveScene(path, hour, sky, animate, paused)
         else -> ImageWallpaper(path)
     }
     if (path != null) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = cfg.wallpaperDim / 100f)))
-    if (cfg.weatherOnWallpaper && animate && sky != null) WeatherParticles(sky)
+    if (cfg.weatherOnWallpaper && animate && sky != null) WeatherParticles(sky, paused)
 }
 
 @Composable
@@ -118,14 +118,15 @@ private fun ImageWallpaper(path: String) {
 
 /** Время в мс, обновляемое ~[fps] раз в секунду. Читать только в фазе рисования — тогда нет перекомпоновок. */
 @Composable
-private fun frameTime(animate: Boolean, fps: Int = 30): androidx.compose.runtime.MutableLongState {
+private fun frameTime(animate: Boolean, fps: Int = 30, paused: () -> Boolean = { false }): androidx.compose.runtime.MutableLongState {
     val time = remember { mutableLongStateOf(0L) }
     LaunchedEffect(animate, fps) {
         if (!animate) return@LaunchedEffect
         val step = 1000L / fps
         var last = 0L
         while (true) {
-            withFrameMillis { ms -> if (ms - last >= step) { last = ms; time.longValue = ms } }
+            // Во время прокрутки кадр не меняем: GPU телевизора занят списком, фон подождёт.
+            withFrameMillis { ms -> if (ms - last >= step && !paused()) { last = ms; time.longValue = ms } }
         }
     }
     return time
@@ -214,7 +215,7 @@ private fun snowy(sky: Sky?) = sky == Sky.SNOW || sky == Sky.SLEET
 // ------------------------------------------------------------------ сцены
 
 @Composable
-private fun LiveScene(kind: String, hour: Float, sky: Sky?, animate: Boolean) {
+private fun LiveScene(kind: String, hour: Float, sky: Sky?, animate: Boolean, paused: () -> Boolean) {
     // Окна города мигают раз в 15 секунд; остальное статичное перестраиваем раз в 5 минут.
     val cityTick by produceState(0L, kind) {
         if (kind != "scene:city") return@produceState
@@ -231,7 +232,7 @@ private fun LiveScene(kind: String, hour: Float, sky: Sky?, animate: Boolean) {
         }
     }
     val look = remember(slot, sky) { skyLook(hour, sky) }
-    val time = frameTime(animate, if (kind == "scene:fire") 20 else 30)
+    val time = frameTime(animate, if (kind == "scene:fire") 20 else 24, paused)
     val fire = remember(kind) { if (kind == "scene:fire") DoomFire(60, 40) else null }
     val stars = remember { val r = Random(7); List(70) { Triple(r.nextInt(W), r.nextInt(52), r.nextFloat() * 6f) } }
     val clouds = remember(sky) {
@@ -496,12 +497,12 @@ private fun DrawScope.drawFire(fire: DoomFire, t: Long, cx: Float, cy: Float) {
 
 /** Дождь, снег, туман и вспышки грозы по реальной погоде. Пиксели привязаны к той же сетке, что и сцены. */
 @Composable
-fun WeatherParticles(sky: Sky) {
+fun WeatherParticles(sky: Sky, paused: () -> Boolean = { false }) {
     val kind = when (sky) {
         Sky.DRIZZLE -> 1; Sky.RAIN -> 2; Sky.THUNDER -> 3; Sky.SNOW -> 4; Sky.SLEET -> 5; Sky.FOG -> 6
         else -> return
     }
-    val time = frameTime(true, 30)
+    val time = frameTime(true, 24, paused)
     val drops = remember(kind) {
         val n = when (kind) { 1 -> 45; 2, 3 -> 110; 4 -> 90; 5 -> 80; else -> 6 }
         val r = Random(kind)

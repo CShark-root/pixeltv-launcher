@@ -50,7 +50,9 @@ private sealed interface Screen {
 
 class HomeActivity : ComponentActivity() {
 
-    private var lastInput by mutableLongStateOf(SystemClock.uptimeMillis())
+    // Обычное поле, не состояние Compose: иначе каждое нажатие пульта пересобирало весь экран.
+    private var lastInput = SystemClock.uptimeMillis()
+    private var idle by mutableStateOf(false)
     private var homeTick by mutableIntStateOf(0)
     private var screen by mutableStateOf<Screen>(Screen.Home)
 
@@ -73,14 +75,14 @@ class HomeActivity : ComponentActivity() {
             // Перепланируем будильники при любом изменении сценариев.
             LaunchedEffect(cfg.scenarios) { Scheduler.scheduleAll(this@HomeActivity, cfg) }
 
-            var idle by remember { mutableStateOf(false) }
+
             LaunchedEffect(cfg.mascotSleepMinutes) {
                 while (true) {
                     idle = SystemClock.uptimeMillis() - lastInput > cfg.mascotSleepMinutes * 60_000L
                     delay(5_000)
                 }
             }
-            LaunchedEffect(lastInput) { if (idle) idle = false }
+
 
             DenThemeProvider(theme) {
                 Box(Modifier.fillMaxSize()) {
@@ -106,7 +108,7 @@ class HomeActivity : ComponentActivity() {
                             is Screen.Editor -> ScenarioEditorScreen(cfg, s.id) { go(Screen.Scenarios) }
                         }
                     }
-                    PixelCoverOverlay(cover.value, coverSeed, theme.colors.bg)
+                    PixelCoverOverlay({ cover.value }, coverSeed, theme.colors.bg)
                 }
                 BackHandler(enabled = screen != Screen.Home) {
                     go(
@@ -149,6 +151,7 @@ class HomeActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         lastInput = SystemClock.uptimeMillis()
+        if (idle) idle = false
         // Кнопка MENU на главном экране — сразу в настройки.
         if (event.keyCode == KeyEvent.KEYCODE_MENU && event.action == KeyEvent.ACTION_UP && screen == Screen.Home) {
             go(Screen.Settings())

@@ -37,7 +37,7 @@ import java.util.Locale
 
 /** Виджеты главного экрана: id, название для настроек. */
 val WIDGETS = listOf(
-    "calendar" to "Календарь и праздники",
+    "calendar" to "Праздники",
     "rates" to "Курсы валют",
     "timer" to "Таймер сна",
     "health" to "Память ТВ",
@@ -50,19 +50,17 @@ private val ICON_RAM = listOf(".#.#.#.#.", "#########", "#+++++++#", "#+##+##+#"
 
 @Composable
 fun WidgetRow(cfg: LauncherConfig, onTopFocus: () -> Unit, onOpenHealth: () -> Unit) {
-    var calendar by remember { mutableStateOf(false) }
     Row(
         Modifier.padding(bottom = 12.dp).onFocusChanged { if (it.hasFocus) onTopFocus() },
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         for (id in cfg.widgets) when (id) {
-            "calendar" -> CalendarTile { calendar = true }
+            "calendar" -> CalendarTile()
             "rates" -> RatesTile()
             "timer" -> TimerTile()
             "health" -> HealthTile(onOpenHealth)
         }
     }
-    if (calendar) CalendarOverlay { calendar = false }
 }
 
 @Composable
@@ -89,22 +87,6 @@ private fun WidgetTile(
             PText(value, 16.sp, if (focused) t.colors.text else t.colors.text.copy(alpha = 0.9f))
         }
     }
-}
-
-@Composable
-private fun CalendarTile(onClick: () -> Unit) {
-    val (title, value) = remember {
-        val today = Holidays.today()
-        if (today != null) "Сегодня" to today
-        else Holidays.next()?.let { (name, d) -> "Через ${days(d)}" to name } ?: ("Календарь" to "")
-    }
-    WidgetTile(ICON_CAL, title, value, onClick = onClick)
-}
-
-private fun days(n: Int) = "$n " + when {
-    n % 10 == 1 && n % 100 != 11 -> "день"
-    n % 10 in 2..4 && n % 100 !in 12..14 -> "дня"
-    else -> "дней"
 }
 
 @Composable
@@ -153,56 +135,20 @@ private fun HealthTile(onClick: () -> Unit) {
     )
 }
 
-/** Календарь месяца: праздники подсвечены, < > листают месяцы. */
+
+/** Сегодняшний или ближайший праздник. Просто плитка — без отдельного окна. */
 @Composable
-private fun CalendarOverlay(onDismiss: () -> Unit) {
-    val t = LocalDen.current
-    var shift by remember { mutableIntStateOf(0) }
-    val month = remember(shift) { Calendar.getInstance().apply { set(Calendar.DAY_OF_MONTH, 1); add(Calendar.MONTH, shift) } }
-    val title = remember(shift) { SimpleDateFormat("LLLL yyyy", Locale("ru")).format(month.time).replaceFirstChar { it.uppercase() } }
-    val today = remember { Calendar.getInstance() }
-    val holidays = remember(shift) {
-        val c = month.clone() as Calendar
-        (1..c.getActualMaximum(Calendar.DAY_OF_MONTH)).mapNotNull { d -> c.set(Calendar.DAY_OF_MONTH, d); Holidays.today(c)?.let { d to it } }
+private fun CalendarTile() {
+    val (title, value) = remember {
+        val today = Holidays.today()
+        if (today != null) "Сегодня" to today
+        else Holidays.next()?.let { (name, d) -> "Через ${days(d)}" to name } ?: ("Праздники" to "—")
     }
-    Overlay("Календарь", onDismiss, width = 640.dp) {
-        item {
-            SettingRow(title, "", focusRequester = rememberAutoFocus(), hint = "< > — другой месяц · BACK — закрыть",
-                onLeft = { shift-- }, onRight = { shift++ }, onClick = onDismiss)
-        }
-        item {
-            Column(Modifier.padding(vertical = 8.dp)) {
-                Row { listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс").forEach { Cell(it, t.colors.dim) } }
-                val c = month.clone() as Calendar
-                val lead = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7
-                val max = c.getActualMaximum(Calendar.DAY_OF_MONTH)
-                val isThisMonth = c.get(Calendar.YEAR) == today.get(Calendar.YEAR) && c.get(Calendar.MONTH) == today.get(Calendar.MONTH)
-                val hol = holidays.map { it.first }.toSet()
-                ((1 - lead)..max).chunked(7).forEach { week ->
-                    Row {
-                        week.forEach { d ->
-                            val isToday = isThisMonth && d == today.get(Calendar.DAY_OF_MONTH)
-                            val weekend = (d + lead - 1) % 7 >= 5
-                            Cell(
-                                if (d < 1) "" else "$d",
-                                when { isToday -> t.colors.bg; d in hol -> Color(0xFFFFD25A); weekend -> t.colors.accent; else -> t.colors.text },
-                                if (isToday) t.colors.accent else null,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        holidays.forEach { (d, name) -> item { PText("$d — $name", 15.sp, t.colors.dim, Modifier.padding(top = 4.dp)) } }
-        if (holidays.isEmpty()) item { PText("В этом месяце праздников нет", 15.sp, t.colors.dim) }
-    }
+    WidgetTile(ICON_CAL, title, value) {}
 }
 
-@Composable
-private fun Cell(text: String, color: Color, fill: Color? = null) {
-    val t = LocalDen.current
-    Box(
-        Modifier.size(78.dp, 38.dp).let { if (fill != null) it.pixelBox(Color.Transparent, fill, 2) else it },
-        contentAlignment = Alignment.Center,
-    ) { PText(text, 17.sp, color) }
+private fun days(n: Int) = "$n " + when {
+    n % 10 == 1 && n % 100 != 11 -> "день"
+    n % 10 in 2..4 && n % 100 !in 12..14 -> "дня"
+    else -> "дней"
 }
