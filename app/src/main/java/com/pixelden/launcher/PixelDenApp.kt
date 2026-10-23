@@ -10,6 +10,7 @@ import com.pixelden.launcher.scenario.Templates
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class PixelDenApp : Application() {
 
@@ -49,6 +50,28 @@ class PixelDenApp : Application() {
             if (store.current.showWidgets && "rates" in store.current.widgets) it.start()
         }
         web = com.pixelden.launcher.web.WebServer(this).also { if (store.current.webPanel) it.start() }
+
+        // Контроль памяти: раз в полчаса — в журнал. Рост от записи к записи сразу покажет утечку.
+        scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(30 * 60_000L)
+                val mi = android.os.Debug.MemoryInfo().also { android.os.Debug.getMemoryInfo(it) }
+                val stats = mi.memoryStats
+                com.pixelden.launcher.scenario.DebugLog.i(
+                    "память: всего ${mi.totalPss / 1024} МБ · картинки ${(stats["summary.native-heap"]?.toIntOrNull() ?: 0) / 1024} МБ" +
+                        " · видеопамять ${(stats["summary.graphics"]?.toIntOrNull() ?: 0) / 1024} МБ · Java ${(stats["summary.java-heap"]?.toIntOrNull() ?: 0) / 1024} МБ",
+                )
+            }
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // Системе не хватает памяти — отдаём кэш иконок, он подгрузится заново.
+        if (level >= TRIM_MEMORY_RUNNING_LOW) {
+            apps.trimImages()
+            com.pixelden.launcher.scenario.DebugLog.i("мало памяти (уровень $level): кэш иконок очищен")
+        }
     }
 
     companion object {

@@ -43,6 +43,9 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
     // Баннеры 320x180 в ARGB ~230 КБ; 48 штук ≈ 11 МБ — разумный потолок для ТВ с 1,8 ГБ.
     private val images = object : LruCache<String, ImageBitmap>(48) {}
 
+    /** Система просит освободить память — иконки и баннеры подгрузятся заново по мере надобности. */
+    fun trimImages() = images.evictAll()
+
     init {
         refresh()
         val filter = IntentFilter().apply {
@@ -54,7 +57,7 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
         }
         context.registerReceiver(object : BroadcastReceiver() {
             override fun onReceive(c: Context, i: Intent) {
-                i.data?.schemeSpecificPart?.let { pkg -> images.remove(pkg) }
+                i.data?.schemeSpecificPart?.let { pkg -> images.remove("b:$pkg"); images.remove("i:$pkg") }
                 refresh()
             }
         }, filter)

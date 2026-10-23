@@ -78,7 +78,14 @@ fun decodeSampled(path: String, maxW: Int, maxH: Int): Bitmap? {
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
     var sample = 1
     while (bounds.outWidth / (sample * 2) >= maxW && bounds.outHeight / (sample * 2) >= maxH) sample *= 2
-    return BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
+    val bmp = BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
+    // Степень двойки оставляет фото 6000×4000 размером 3000×2000 (24 МБ в памяти и столько же в видеочипе) —
+    // дожимаем точно до экрана с заполнением, как ContentScale.Crop: 1920×1080 — это 8 МБ.
+    val k = maxOf(maxW.toFloat() / bmp.width, maxH.toFloat() / bmp.height)
+    if (k >= 0.95f) return bmp
+    val scaled = Bitmap.createScaledBitmap(bmp, (bmp.width * k).toInt().coerceAtLeast(1), (bmp.height * k).toInt().coerceAtLeast(1), true)
+    if (scaled !== bmp) bmp.recycle()
+    return scaled
 }
 
 /** Фон главного экрана: обои или сцена, затемнение и погода поверх. */
