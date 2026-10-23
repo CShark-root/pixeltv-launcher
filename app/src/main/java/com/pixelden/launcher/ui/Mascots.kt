@@ -30,6 +30,11 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.layout
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -119,6 +124,8 @@ fun MascotSprite(
     headroom: Int = 10,
     /** Реплика в облачке над головой; ходит вместе с маскотом. */
     bubble: String? = null,
+    /** Пасхалка: увеличьте — маскот скажет «bruh.». «67» он изредка показывает сам. */
+    bruhKey: Int = 0,
 ) {
     val context = LocalContext.current
     val sheet = remember(mascot.id) { SheetCache.get(context, mascot.id) }
@@ -126,6 +133,15 @@ fun MascotSprite(
     var busy by remember { mutableStateOf(false) }   // прыжок перебивает остальное
     var lastMood by remember { mutableStateOf(mood) }
     var wokeUp by remember { mutableStateOf(false) }
+    var caption by remember { mutableStateOf<String?>(null) }
+    val meme: suspend (Int) -> Unit = { kind ->
+        playMeme(
+            kind,
+            set = { pose = pose.copy(frame = it) },
+            dy = { pose = pose.copy(dy = it) },
+            say = { caption = it },
+        )
+    }
     if (lastMood != mood) { if (lastMood == MascotMood.SLEEP) wokeUp = true; lastMood = mood }
 
     LaunchedEffect(mascot.id, mood, animate, roam, talking) {
@@ -171,11 +187,21 @@ fun MascotSprite(
                         in 66..75 -> if (!busy) { if (sleepy || Random.nextBoolean()) yawn(set) else stretch(set) }
                         in 76..83 -> if (!busy) stretch(set)
                         in 84..90 -> if (!busy && !sleepy) dance(set)
+                        // Пасхалка «67» — изредка, в случайный момент (около раза в 10 минут).
+                        91 -> if (!busy) meme(0)
                         else -> if (!busy) { set("happy"); delay(900) }
                     }
                 }
             }
         }
+    }
+
+    // Пасхалка «bruh.»: упёрлись в потолок экрана.
+    LaunchedEffect(bruhKey) {
+        if (bruhKey == 0 || !animate || mood == MascotMood.SLEEP) return@LaunchedEffect
+        while (busy) delay(100)
+        busy = true
+        try { meme(1) } finally { busy = false }
     }
 
     // Радость при запуске приложения: подпрыгнуть и улыбнуться.
@@ -241,6 +267,15 @@ fun MascotSprite(
             val gy = (headroom - p.dy + sheet.top - 1 - age * 12f).roundToInt() - 5 * k
             drawZ(gx * px, gy * px, px * k, Color.White.copy(alpha = (1f - age).coerceIn(0f, 1f)))
         }
+    }
+    caption?.let { text ->
+        // Подпись мема — по центру над головой, вместе с подскоками.
+        MemeCaption(text, Modifier.align(Alignment.TopStart).layout { m, _ ->
+            val pl = m.measure(Constraints())
+            val cx = ((pose.x + (sheet.left + sheet.right) / 2f + 0.5f) * pixel).dp.roundToPx()
+            val top = ((headroom - pose.dy + sheet.top) * pixel).dp.roundToPx() - 6.dp.roundToPx()
+            layout(0, 0) { pl.place(cx - pl.width / 2, top - pl.height) }
+        })
     }
     }
 }
@@ -374,4 +409,46 @@ private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+/**
+ * Мемная выходка с подписью над головой. Кадры — из обычного набора, смысл делают подпись и ритм.
+ * В конце (и при прерывании) маскот садится и подпись исчезает.
+ */
+private suspend fun playMeme(
+    kind: Int,
+    set: (String) -> Unit,
+    dy: (Int) -> Unit,
+    say: (String?) -> Unit,
+) {
+    try {
+        when (kind) {
+            // «67»: руки вверх-вниз по очереди
+            0 -> {
+                repeat(4) { set("danceL"); say("6"); delay(190); set("danceR"); say("7"); delay(190) }
+                set("happy"); say("67!"); delay(1100)
+            }
+            // «bruh.»: удивился — и смотрит в камеру
+            else -> { set("surprise"); say("bruh."); delay(700); set("look"); delay(1300) }
+        }
+    } finally {
+        say(null); dy(0); set("sit0")
+    }
+}
+
+/** Подпись мема: крупно, белым с жёсткой чёрной тенью — как в классических мемах. */
+@Composable
+private fun MemeCaption(text: String, modifier: Modifier = Modifier) {
+    val t = LocalDen.current
+    BasicText(
+        text,
+        modifier,
+        style = TextStyle(
+            color = Color.White,
+            fontFamily = t.font,
+            fontSize = 26.sp * t.fontScale,
+            shadow = Shadow(Color.Black, Offset(4f, 4f), 0f),
+        ),
+        maxLines = 1,
+    )
 }

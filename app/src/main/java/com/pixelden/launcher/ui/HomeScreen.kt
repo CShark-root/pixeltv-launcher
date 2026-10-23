@@ -40,6 +40,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clipToBounds
@@ -263,6 +266,9 @@ private fun Header(
     val news by app.news.titles.collectAsState()
     var bubble by remember { mutableStateOf<String?>(null) }
     var appComment by remember { mutableStateOf<String?>(null) }
+    var bruhKey by remember { mutableStateOf(0) }
+    var upPresses by remember { mutableStateOf(0) }
+    var lastUp by remember { mutableStateOf(0L) }
 
     /** Показать реплику на [ms] и убрать, если её не перебили другой. */
     suspend fun say(text: String, ms: Long) {
@@ -316,7 +322,22 @@ private fun Header(
             if (cfg.showDate) PText(dateFmt.format(now).replaceFirstChar { it.uppercase() }, 18.sp, t.colors.dim)
             WeatherLine(cfg)
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.onFocusChanged { if (it.hasFocus) onTopFocus() }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier
+                    .onFocusChanged { if (it.hasFocus) onTopFocus() }
+                    // Пасхалка: выше кнопок ничего нет — пять «вверх» подряд, и маскот говорит «bruh.».
+                    .onPreviewKeyEvent { e ->
+                        if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && e.nativeKeyEvent.repeatCount == 0) {
+                            val now = android.os.SystemClock.uptimeMillis()
+                            upPresses = if (now - lastUp < 1500) upPresses + 1 else 1
+                            lastUp = now
+                            if (upPresses >= 5) { upPresses = 0; bruhKey++ }
+                        }
+                        // Выше кнопок ничего нет: «вверх» гасим, иначе фокус уходит из лаунчера в никуда.
+                        e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP
+                    },
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 PButton("Сценарии", size = 14.sp, onClick = onOpenScenarios)
                 PButton("Настройки", size = 14.sp, onClick = onOpenSettings)
                 PButton("ТВ", size = 14.sp) {
@@ -341,6 +362,7 @@ private fun Header(
                         roam = (360 / cfg.mascotScale - 32).coerceIn(0, 40),
                         headroom = 8,
                         bubble = shown,
+                        bruhKey = bruhKey,
                     )
                 }
             }
