@@ -20,7 +20,6 @@ class DenAccessibilityService : AccessibilityService() {
 
     private var downAt = 0L
     private var longFired = false
-    private var swallowUntilUp = false
     private var lastUpKey = 0
     private var lastUpAt = 0L
 
@@ -68,49 +67,69 @@ class DenAccessibilityService : AccessibilityService() {
                     if (bindings.isEmpty()) "" else " → привязано: " + bindings.map { "${it.key}: ${it.value.name}" }.joinToString()
             )
         }
-        if (bindings.isEmpty()) return false
+        if (bindings.isEmpty() && capturedCode != code) return false
         val short = bindings[PressType.SHORT]
         val long = bindings[PressType.LONG]
         val double = bindings[PressType.DOUBLE]
         val now = SystemClock.uptimeMillis()
 
+        // Правило: нажатие и отпускание кнопки либо оба уходят системе, либо оба забираем мы.
+        // Раньше «удержание» пропускало нажатие, а отпускание забирало — система считала кнопку
+        // зажатой навсегда, и, например, OK переставал работать после удержания «Назад».
         when (event.action) {
             KeyEvent.ACTION_DOWN -> {
                 if (event.repeatCount == 0) {
                     downAt = now
                     longFired = false
-                    if (double != null && lastUpKey == code && now - lastUpAt < 400) {
-                        swallowUntilUp = true
-                        app.engine.run(double, "кнопка ×2")
-                        return true
-                    }
-                    return short != null
+                    doubleHit = double != null && lastUpKey == code && now - lastUpAt < 400
+                    // Забираем нажатие целиком, если есть «коротко», это второе из «дважды» или кнопку
+                    // умеем повторить сами (Назад, Домой, OK) — тогда короткое нажатие выполним вместо системы.
+                    val take = short != null || doubleHit || ((long != null || double != null) && canEmulate(event.keyCode))
+                    capturedCode = if (take) code else -1
+                    if (doubleHit) app.engine.run(double!!, "кнопка ×2")
+                    return take
                 }
-                if (long != null && !longFired && now - downAt >= 600) {
+                // Пульты с автоповтором: удержание видно ещё до отпускания.
+                if (long != null && !longFired && !doubleHit && now - downAt >= 600) {
                     longFired = true
                     app.engine.run(long, "кнопка удержание")
                 }
-                return short != null || longFired || swallowUntilUp
+                return capturedCode == code
             }
             KeyEvent.ACTION_UP -> {
                 lastUpKey = code
                 lastUpAt = now
-                if (swallowUntilUp) { swallowUntilUp = false; return true }
-                if (longFired) return true
-                if (short != null) {
-                    // Пульт без автоповтора: длинное определяем по длительности при отпускании.
-                    if (long != null && now - downAt >= 600) app.engine.run(long, "кнопка удержание") else app.engine.run(short, "кнопка")
-                    return true
-                }
-                // Только «удержание»: пульт Xiaomi не шлёт автоповтор, поэтому считаем по длительности здесь.
-                if (long != null && now - downAt >= 600) {
+                val held = now - downAt >= 600
+                val wasCaptured = capturedCode == code
+                if (wasCaptured) capturedCode = -1
+                if (doubleHit) { doubleHit = false; return wasCaptured }
+                if (!longFired && long != null && held) {
+                    // Пульт Xiaomi не шлёт автоповтор — удержание узнаём по длительности при отпускании.
                     app.engine.run(long, "кнопка удержание")
-                    return true
+                } else if (!longFired && wasCaptured) {
+                    if (short != null) app.engine.run(short, "кнопка") else emulate(event.keyCode)
                 }
-                return false
+                return wasCaptured
             }
         }
         return false
+    }
+
+    /** Код кнопки, чьё текущее нажатие мы забрали целиком, или -1. */
+    private var capturedCode = -1
+    private var doubleHit = false
+
+    private fun canEmulate(code: Int) = code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_HOME ||
+        code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER
+
+    /** Короткое нажатие забранной кнопки делаем сами — так, как сделала бы система. */
+    private fun emulate(code: Int) {
+        when (code) {
+            KeyEvent.KEYCODE_BACK -> performGlobalAction(GLOBAL_ACTION_BACK)
+            KeyEvent.KEYCODE_HOME -> performGlobalAction(GLOBAL_ACTION_HOME)
+            else -> rootInActiveWindow?.findFocus(android.view.accessibility.AccessibilityNodeInfo.FOCUS_INPUT)
+                ?.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)
+        }
     }
 
     companion object {
