@@ -52,6 +52,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -166,7 +168,7 @@ fun HomeScreen(
                     if (favorites.isEmpty()) {
                         PText("Удерживайте OK на приложении → «В избранное»", 14.sp, t.colors.dim, Modifier.padding(bottom = 18.dp))
                     } else {
-                        AppRow(favorites, "fav", cfg, cfg.cardSize * 1.9f, restoreKey,
+                        AppRow(favorites, "fav", cfg, 4, restoreKey,
                             onFocus = { e, k -> focusedLabel = labelOf(cfg, e); focusedPkg = e.pkg; lastFocusKey = k; scrollTop() },
                             onClick = ::launch, onLong = { menuFor = it })
                     }
@@ -184,7 +186,7 @@ fun HomeScreen(
                     if (list.isEmpty()) continue
                     item(key = "cat-${cat.id}") {
                         RowTitle(cat.name)
-                        AppRow(list, "cat${cat.id}", cfg, cfg.cardSize * 2.2f, restoreKey,
+                        AppRow(list, "cat${cat.id}", cfg, 3, restoreKey,
                             onFocus = { e, k -> focusedLabel = labelOf(cfg, e); focusedPkg = e.pkg; lastFocusKey = k },
                             onClick = ::launch, onLong = { menuFor = it })
                     }
@@ -358,22 +360,36 @@ private fun AppRow(
     list: List<AppEntry>,
     prefix: String,
     cfg: LauncherConfig,
-    width: Float,
+    /** Сколько карточек ровно помещается в ширину экрана при размере карточек 100%. */
+    perScreen: Int,
     restoreKey: String?,
     onFocus: (AppEntry, String) -> Unit,
     onClick: (AppEntry) -> Unit,
     onLong: (AppEntry) -> Unit,
 ) {
     val state = rememberLazyListState()
-    LazyRow(
-        state = state,
-        horizontalArrangement = Arrangement.spacedBy(22.dp),
-        // Запас по краям: карточка в фокусе увеличивается и не должна обрезаться рядом.
-        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 40.dp),
-    ) {
-        items(list, key = { "$prefix:${it.pkg}" }) { e ->
-            val key = "$prefix:${e.pkg}"
-            AppCard(e, cfg, width.dp, key, restoreKey, { onFocus(e, key) }, { onClick(e) }, { onLong(e) })
+    val gap = 22.dp
+    val bleed = 40.dp
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // Карточки делят ширину поровну: ряд начинается по краю часов и кончается на том же отступе справа.
+        val n = (perScreen * 100f / cfg.cardSize).roundToInt().coerceIn(2, 8)
+        val width = (maxWidth - gap * (n - 1)) / n
+        LazyRow(
+            state = state,
+            // Ряд шире своего места на [bleed] с каждой стороны: увеличенная карточка в фокусе уходит
+            // в поля экрана, а не обрезается, и при этом карточки стоят ровно по сетке.
+            modifier = Modifier.layout { m, c ->
+                val extra = bleed.roundToPx() * 2
+                val p = m.measure(c.copy(minWidth = c.maxWidth + extra, maxWidth = c.maxWidth + extra))
+                layout(c.maxWidth, p.height) { p.place(-extra / 2, 0) }
+            },
+            horizontalArrangement = Arrangement.spacedBy(gap),
+            contentPadding = PaddingValues(vertical = 16.dp, horizontal = bleed),
+        ) {
+            items(list, key = { "$prefix:${it.pkg}" }) { e ->
+                val key = "$prefix:${e.pkg}"
+                AppCard(e, cfg, width, key, restoreKey, { onFocus(e, key) }, { onClick(e) }, { onLong(e) })
+            }
         }
     }
 }
@@ -389,8 +405,9 @@ private fun AppGrid(
 ) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val gap = 18.dp
-        val w = (maxWidth - gap * (cfg.columns - 1) - 40.dp) / cfg.columns
-        Column(verticalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+        // Сетка по краям часов, как и ряды; увеличенные карточки уходят в поля экрана.
+        val w = (maxWidth - gap * (cfg.columns - 1)) / cfg.columns
+        Column(verticalArrangement = Arrangement.spacedBy(gap), modifier = Modifier.padding(vertical = 12.dp)) {
             list.chunked(cfg.columns).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                     row.forEach { e ->
