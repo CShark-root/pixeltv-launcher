@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId = "com.pixelden.launcher"
-        minSdk = 29
+        minSdk = 28
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
