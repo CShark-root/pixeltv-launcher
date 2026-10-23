@@ -40,6 +40,7 @@ private val DAYS = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"
 
 fun keyName(code: Int): String = when (code) {
     0 -> "не выбрана"
+    in com.pixelden.launcher.scenario.SCAN_BASE..Int.MAX_VALUE -> "Кнопка без кода №${code - com.pixelden.launcher.scenario.SCAN_BASE}"
     KeyEvent.KEYCODE_MENU -> "Меню"
     KeyEvent.KEYCODE_SEARCH, KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_ASSIST -> "Голос / Поиск"
     KeyEvent.KEYCODE_HOME -> "Домой"

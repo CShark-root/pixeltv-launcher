@@ -59,10 +59,11 @@ class DenAccessibilityService : AccessibilityService() {
         KeyCapture.consume(event)?.let { return it }
 
         val app = PixelDenApp.instance
-        val bindings = app.engine.keyBindings(event.keyCode)
+        val code = keyId(event)
+        val bindings = app.engine.keyBindings(code)
         if (DebugLog.logKeys && event.repeatCount == 0) {
             DebugLog.i(
-                "кнопка ${KeyEvent.keyCodeToString(event.keyCode)} (${event.keyCode}) " +
+                "кнопка ${KeyEvent.keyCodeToString(event.keyCode)} (${code}" + (if (code >= SCAN_BASE) ", скан-код ${event.scanCode}" else "") + ") " +
                     (if (event.action == KeyEvent.ACTION_DOWN) "↓" else "↑") +
                     if (bindings.isEmpty()) "" else " → привязано: " + bindings.map { "${it.key}: ${it.value.name}" }.joinToString()
             )
@@ -78,7 +79,7 @@ class DenAccessibilityService : AccessibilityService() {
                 if (event.repeatCount == 0) {
                     downAt = now
                     longFired = false
-                    if (double != null && lastUpKey == event.keyCode && now - lastUpAt < 400) {
+                    if (double != null && lastUpKey == code && now - lastUpAt < 400) {
                         swallowUntilUp = true
                         app.engine.run(double, "кнопка ×2")
                         return true
@@ -92,7 +93,7 @@ class DenAccessibilityService : AccessibilityService() {
                 return short != null || longFired || swallowUntilUp
             }
             KeyEvent.ACTION_UP -> {
-                lastUpKey = event.keyCode
+                lastUpKey = code
                 lastUpAt = now
                 if (swallowUntilUp) { swallowUntilUp = false; return true }
                 if (longFired) return true
@@ -133,8 +134,14 @@ object KeyCapture {
         val cb = callback ?: return null
         if (e.action == KeyEvent.ACTION_UP) {
             callback = null
-            cb(e.keyCode)
+            cb(keyId(e))
         }
         return true
     }
 }
+
+/** Кнопки без системного кода (KEYCODE_UNKNOWN) различаем по скан-коду: такие есть у пульта Mi TV 4S. */
+const val SCAN_BASE = 100_000
+
+fun keyId(e: KeyEvent): Int =
+    if (e.keyCode == KeyEvent.KEYCODE_UNKNOWN && e.scanCode > 0) SCAN_BASE + e.scanCode else e.keyCode
