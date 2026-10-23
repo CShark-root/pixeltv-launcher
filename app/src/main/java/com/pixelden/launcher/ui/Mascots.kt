@@ -35,6 +35,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import kotlin.random.Random
 
 /*
@@ -62,7 +63,7 @@ enum class MascotMood { IDLE, SLEEP }
  * [left] — первая видимая колонка спрайта (без свечения), [headY] — строка на уровне глаз.
  * Считаются по кадру sit0 при загрузке, чтобы реплика вставала рядом с любым маскотом.
  */
-private class Sheet(val image: ImageBitmap, val fw: Int, val fh: Int, val index: Map<String, Int>, val left: Int, val right: Int, val headY: Int)
+private class Sheet(val image: ImageBitmap, val fw: Int, val fh: Int, val index: Map<String, Int>, val left: Int, val right: Int, val top: Int, val headY: Int)
 
 private object SheetCache {
     private val sheets = HashMap<String, Sheet>()
@@ -86,7 +87,7 @@ private object SheetCache {
         }
         Sheet(
             bmp.asImageBitmap(), size.width, size.height, names.withIndex().associate { it.value to it.index },
-            left = left, right = right, headY = topRow + (bottomRow - topRow) * 2 / 5,
+            left = left, right = right, top = topRow, headY = topRow + (bottomRow - topRow) * 2 / 5,
         )
     }
 }
@@ -231,10 +232,14 @@ fun MascotSprite(
         if (p.faceLeft) scale(-1f, 1f, pivot = Offset(left + w / 2, top + h / 2), block = draw) else draw()
 
         // «Z» во сне: из-за головы вверх, тают.
+        // Считаем в пикселях спрайта и округляем: буквы стоят на той же сетке, что и маскот, и не рассыпаются.
+        val dir = if (p.faceLeft) -1 else 1
+        val headX = p.x + (sheet.left + sheet.right) / 2 + 4 * dir
         for ((age, jitter) in p.zs) {
-            val zx = left + (if (p.faceLeft) 10f else 48f + jitter * 4) * px
-            val zy = top + (20f - age * 26f) * px
-            drawZ(zx, zy, px * (if (age > 0.4f) 2f else 1.4f), Color.White.copy(alpha = (1f - age).coerceIn(0f, 1f)))
+            val k = if (age > 0.45f) 2 else 1
+            val gx = (headX + dir * (age * 7f + jitter * 2f)).roundToInt() - if (dir < 0) 3 * k else 0
+            val gy = (headroom - p.dy + sheet.top - 1 - age * 12f).roundToInt() - 5 * k
+            drawZ(gx * px, gy * px, px * k, Color.White.copy(alpha = (1f - age).coerceIn(0f, 1f)))
         }
     }
     }
@@ -333,7 +338,8 @@ private val Z_GLYPH = listOf("KKK", "..K", ".K.", "K..", "KKK")
 private fun DrawScope.drawZ(x: Float, y: Float, px: Float, color: Color) {
     Z_GLYPH.forEachIndexed { r, row ->
         row.forEachIndexed { c, ch ->
-            if (ch == 'K') drawRect(color, Offset(x + c * px, y + r * px), Size(px + 0.5f, px + 0.5f))
+            // Без нахлёста: с полупрозрачным цветом нахлёст давал тёмные швы между квадратиками.
+            if (ch == 'K') drawRect(color, Offset(x + c * px, y + r * px), Size(px, px))
         }
     }
 }

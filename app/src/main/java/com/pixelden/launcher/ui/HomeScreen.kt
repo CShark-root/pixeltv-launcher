@@ -618,11 +618,14 @@ private fun WeatherLine(cfg: LauncherConfig) {
     val now = w ?: return
     Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         PixelIcon(com.pixelden.launcher.weather.skyIcon(now.sky, now.isDay), 3, t.colors.text.copy(alpha = 0.8f), t.colors.text)
-        PText(
-            (if (now.temp > 0) "+" else "") + "${now.temp}°  ${now.sky.text}" +
-                (now.feelsLike?.takeIf { it != now.temp }?.let { " · ощущается ${if (it > 0) "+" else ""}$it°" } ?: "") +
-                (cfg.weatherCity?.let { " · $it" } ?: ""),
-            18.sp, t.colors.dim, Modifier.padding(start = 10.dp),
-        )
+        // Две строки: в одну «ощущается» и город не влезали рядом с маскотом.
+        Column(Modifier.padding(start = 10.dp)) {
+            PText((if (now.temp > 0) "+" else "") + "${now.temp}°  ${now.sky.text}", 18.sp, t.colors.dim)
+            val extra = listOfNotNull(
+                now.feelsLike?.takeIf { it != now.temp }?.let { "ощущается ${if (it > 0) "+" else ""}$it°" },
+                cfg.weatherCity,
+            ).joinToString(" · ")
+            if (extra.isNotEmpty()) PText(extra, 14.sp, t.colors.dim.copy(alpha = 0.75f))
+        }
     }
 }
