@@ -11,12 +11,12 @@ object Templates {
 
     fun newId() = UUID.randomUUID().toString().take(8)
 
-    /** Шаблоны, которые кладутся при первом запуске. Включён только S/PDIF — ради него всё и затевалось. */
+    /** Шаблоны, которые кладутся при первом запуске. Все выключены: S/PDIF нужен только на ТВ с оптическим выходом. */
     fun initial(): List<Scenario> = listOf(
         Scenario(
             id = newId(),
             name = "S/PDIF после загрузки",
-            enabled = true,
+            enabled = false,
             trigger = Trigger.Boot(delaySec = 15),
             actions = listOf(
                 Action.OpenSettings("android.settings.SOUND_SETTINGS"),

@@ -37,10 +37,11 @@ object CardFocus {
 
 /** Ореол вокруг карточки в фокусе: несколько расходящихся полупрозрачных пиксельных рамок. */
 fun Modifier.focusGlow(active: Boolean, color: Color): Modifier = if (!active) this else drawBehind {
-    val step = 3.dp.toPx()
-    for (k in 1..5) {
+    // Мелкие ступени с плавно гаснущей прозрачностью: ореол без заметных полос.
+    val step = 1.5.dp.toPx()
+    for (k in 1..10) {
         val inset = -step * k
-        val a = 0.22f / k
+        val a = 0.07f * (1f - k / 11f)
         drawRect(color.copy(alpha = a), Offset(inset, inset), Size(size.width - 2 * inset, size.height - 2 * inset))
     }
 }

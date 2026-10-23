@@ -200,13 +200,14 @@ fun MascotSprite(
             Modifier
                 .align(Alignment.TopEnd)
                 .offset {
-                    val gapPx = 2.dp.roundToPx()
+                    val gapPx = 6.dp.roundToPx()
                     IntOffset(
                         -((roam - pose.x + sheet.fw - (if (pose.faceLeft) sheet.fw - 1 - sheet.right else sheet.left)) * pixel).dp.roundToPx() - gapPx,
                         ((headroom + sheet.headY) * pixel).dp.roundToPx() - 20.dp.roundToPx(),
                     )
                 }
-                .wrapContentWidth(unbounded = true),
+                // Длинная реплика растёт только влево: по умолчанию она центрировалась и заезжала на маскота.
+                .wrapContentWidth(Alignment.End, unbounded = true),
         )
     }
     Canvas(Modifier.matchParentSize()) {
@@ -348,7 +349,7 @@ private fun SpeechBubble(text: String, modifier: Modifier = Modifier) {
             Modifier
                 .pixelBox(border, fill, 3)
                 .padding(horizontal = 16.dp, vertical = 9.dp)
-        ) { PText(text, 15.sp, t.colors.text, Modifier.widthIn(max = 440.dp), maxLines = 3) }
+        ) { PText(text, 15.sp, t.colors.text, Modifier.widthIn(max = 330.dp), maxLines = 4) }
         // Хвостик: заходит на рамку на 1 «пиксель», чтобы шов был открыт.
         Canvas(Modifier.offset(x = (-3).dp).size(9.dp, 15.dp)) {
             val u = size.width / 3

@@ -369,7 +369,7 @@ private fun AppRow(
         state = state,
         horizontalArrangement = Arrangement.spacedBy(22.dp),
         // Запас по краям: карточка в фокусе увеличивается и не должна обрезаться рядом.
-        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 20.dp),
+        contentPadding = PaddingValues(vertical = 16.dp, horizontal = 40.dp),
     ) {
         items(list, key = { "$prefix:${it.pkg}" }) { e ->
             val key = "$prefix:${e.pkg}"
