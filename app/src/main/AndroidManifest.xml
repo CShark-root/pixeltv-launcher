@@ -91,6 +91,7 @@
                 <action android:name="com.pixelden.launcher.REFRESH" />
                 <action android:name="com.pixelden.launcher.CITY" />
                 <action android:name="com.pixelden.launcher.ADBTEST" />
+                <action android:name="com.pixelden.launcher.SCAN" />
             </intent-filter>
         </receiver>
 

@@ -121,6 +121,10 @@ class DebugReceiver : BroadcastReceiver() {
                     .onSuccess { DebugLog.i("adb изнутри ТВ: ${it.trim()}") }
                     .onFailure { DebugLog.e("adb изнутри ТВ не подключился", it) }
             }
+            "com.pixelden.launcher.SCAN" -> {
+                val list = com.pixelden.launcher.system.TvCleanup.scan(context)
+                DebugLog.i("чистка видит ${list.size}: " + list.joinToString { (if (it.enabled) "+" else "-") + it.item.pkg })
+            }
             "com.pixelden.launcher.KEYLOG" -> {
                 DebugLog.logKeys = intent.getBooleanExtra("on", true)
                 DebugLog.i("журнал кнопок: ${if (DebugLog.logKeys) "вкл" else "выкл"}")
