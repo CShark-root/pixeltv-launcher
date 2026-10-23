@@ -116,6 +116,11 @@ class DebugReceiver : BroadcastReceiver() {
                 DebugLog.i("обновление погоды и новостей по команде adb")
                 app.scope.launch { app.weather.refresh(); app.news.refresh() }
             }
+            "com.pixelden.launcher.ADBTEST" -> app.scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { com.pixelden.launcher.system.AdbClient(context.applicationContext).shell("echo ok; id") }
+                    .onSuccess { DebugLog.i("adb изнутри ТВ: ${it.trim()}") }
+                    .onFailure { DebugLog.e("adb изнутри ТВ не подключился", it) }
+            }
             "com.pixelden.launcher.KEYLOG" -> {
                 DebugLog.logKeys = intent.getBooleanExtra("on", true)
                 DebugLog.i("журнал кнопок: ${if (DebugLog.logKeys) "вкл" else "выкл"}")

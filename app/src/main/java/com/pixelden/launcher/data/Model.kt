@@ -76,6 +76,8 @@ data class LauncherConfig(
 
     /** Сторож памяти: при нехватке закрывает фоновые приложения. */
     val memoryGuard: Boolean = false,
+    /** Что отключила «Чистка ТВ» — это и вернёт «Вернуть всё как было». */
+    val cleanupDisabled: List<String> = emptyList(),
 
     // Настройка с телефона
     val webPanel: Boolean = true,

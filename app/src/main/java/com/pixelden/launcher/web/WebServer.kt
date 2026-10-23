@@ -284,6 +284,8 @@ class WebServer(private val app: PixelDenApp) {
             webPin = incoming.webPin.takeIf { it.length in 4..8 && it.all(Char::isDigit) } ?: old.webPin,
             defaultsVersion = old.defaultsVersion,
             templatesOffered = old.templatesOffered,
+            // Список отключённого ведёт сам ТВ: устаревшая копия с телефона его не затирает.
+            cleanupDisabled = old.cleanupDisabled,
         )
         app.store.update { next }
         DebugLog.i("веб-панель: настройки сохранены с телефона")

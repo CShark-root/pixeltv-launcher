@@ -436,6 +436,10 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 item { HealthPanel() }
             }
 
+            if (page == "cleanup") {
+                item { CleanupPanel(cfg) }
+            }
+
             if (page == "about") {
                 item { SettingRow("PixelTv ${BuildConfig.VERSION_NAME}", hint = "Шрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)") }
             }
