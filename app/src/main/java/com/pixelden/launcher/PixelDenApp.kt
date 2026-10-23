@@ -50,6 +50,7 @@ class PixelDenApp : Application() {
             if (store.current.showWidgets && "rates" in store.current.widgets) it.start()
         }
         web = com.pixelden.launcher.web.WebServer(this).also { if (store.current.webPanel) it.start() }
+        com.pixelden.launcher.system.MemoryGuard.apply(store.current.memoryGuard)
 
         // Контроль памяти: раз в полчаса — в журнал. Рост от записи к записи сразу покажет утечку.
         scope.launch {

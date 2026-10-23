@@ -442,6 +442,7 @@ function rSet() {
       <button class="btn small bad" onclick="C.yandexWeatherKey='';touch();rSet()">Удалить</button></div>
     <p class="hint">Без ключа погода берётся у Open-Meteo.</p>
   </div>
+  <h2>Память</h2><div class="card">${chk('memoryGuard', 'Сторож памяти', 'Когда памяти меньше 15%, сам закрывает фоновые приложения')}</div>
   <h2>С телефона</h2><div class="card">
     ${chk('webPanel', 'Настройка с телефона', 'Выключите — эта страница перестанет открываться до включения на ТВ')}
     <div class="row"><div class="grow">PIN</div><input type="text" inputmode="numeric" style="width:120px" value="${esc(C.webPin)}" onchange="C.webPin=this.value.trim();touch()"></div>

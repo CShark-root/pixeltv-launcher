@@ -122,6 +122,8 @@ class NewsRepository(private val scope: CoroutineScope) {
         }
     }
 
+    fun stop() { loop?.cancel(); loop = null; _titles.value = emptyList() }
+
     suspend fun refresh(): Boolean {
         val r = withContext(Dispatchers.IO) { runCatching { fetch("https://lenta.ru/rss/news") } }
         r.onSuccess { list ->

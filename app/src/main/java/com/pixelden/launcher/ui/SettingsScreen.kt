@@ -143,7 +143,7 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 item {
                     ToggleRow("Свежие новости", cfg.talkNews, "Заголовки Ленты.ру, обновляются раз в час") { v ->
                         set { it.copy(talkNews = v) }
-                        if (v) app.news.start()
+                        if (v) app.news.start() else app.news.stop()
                     }
                 }
                 item { ToggleRow("Называть приложение в фокусе", cfg.mascotNamesApps) { v -> set { it.copy(mascotNamesApps = v) } } }
@@ -427,6 +427,12 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
             }
 
             if (page == "health") {
+                item {
+                    ToggleRow("Сторож памяти", cfg.memoryGuard, "Когда памяти меньше 15%, сам закрывает фоновые приложения (не чаще раза в 10 минут)") { v ->
+                        set { it.copy(memoryGuard = v) }
+                        com.pixelden.launcher.system.MemoryGuard.apply(v)
+                    }
+                }
                 item { HealthPanel() }
             }
 

@@ -10,6 +10,7 @@ import android.os.StatFs
 import android.os.SystemClock
 import com.pixelden.launcher.scenario.DebugLog
 import java.io.File
+import kotlinx.coroutines.launch
 
 data class HealthSnapshot(
     val ramTotal: Long,
@@ -105,3 +106,40 @@ fun label(context: Context, pkg: String): String = runCatching {
     val pm = context.packageManager
     pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
 }.getOrDefault(pkg)
+
+/**
+ * Сторож памяти: раз в минуту проверяет свободную память ТВ и при нехватке закрывает фоновые приложения
+ * (не чаще раза в 10 минут). Открытое на экране система закрыть не даст.
+ */
+object MemoryGuard {
+    private var job: kotlinx.coroutines.Job? = null
+    private var lastRun = 0L
+
+    fun apply(enabled: Boolean) {
+        val app = com.pixelden.launcher.PixelDenApp.instance
+        if (!enabled) { job?.cancel(); job = null; return }
+        if (job?.isActive == true) return
+        job = app.scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { check(app) }
+            }
+        }
+    }
+
+    private fun check(app: com.pixelden.launcher.PixelDenApp) {
+        val s = Health.snapshot(app)
+        // Сам лаунчер раздулся — сбрасываем свой кэш картинок.
+        if (s.launcherPss > 150L * 1_048_576) {
+            app.apps.trimImages()
+            DebugLog.i("сторож памяти: PixelTv занял ${mb(s.launcherPss)} МБ — кэш иконок сброшен")
+        }
+        val freePct = s.ramAvail * 100 / s.ramTotal
+        if ((freePct >= 15 && !s.lowMemory) || System.currentTimeMillis() - lastRun < 10 * 60_000L) return
+        lastRun = System.currentTimeMillis()
+        val pkgs = app.apps.apps.value.map { it.pkg } + Health.recentApps(app).map { it.pkg }
+        val freed = Health.freeMemory(app, pkgs.toSet())
+        DebugLog.i("сторож памяти: свободно было $freePct%, закрыл фон — освобождено ${mb(freed)} МБ")
+        if (freed > 30L * 1_048_576) app.engine.notify("Прибрался в памяти: +${mb(freed)} МБ")
+    }
+}

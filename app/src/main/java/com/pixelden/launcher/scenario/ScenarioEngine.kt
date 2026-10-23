@@ -56,8 +56,13 @@ class ScenarioEngine(
     }
 
     fun run(s: Scenario, source: String = "вручную") {
+        // Запускают и из главного потока, и из веб-панели — таблицу работающих трогаем только в главном.
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
+            scope.launch(kotlinx.coroutines.Dispatchers.Main) { run(s, source) }
+            return
+        }
         running[s.id]?.cancel()
-        running[s.id] = scope.launch {
+        val job = scope.launch {
             DebugLog.i("▶ ${s.name} [$source], шагов: ${s.actions.size}")
             try {
                 s.actions.forEachIndexed { i, a ->
@@ -74,6 +79,9 @@ class ScenarioEngine(
                 _events.value = "Не вышло: ${s.name} (${e.message ?: e.javaClass.simpleName})"
             }
         }
+        running[s.id] = job
+        // Завершённые не копим (scope на главном потоке — снимаем там же).
+        job.invokeOnCompletion { scope.launch(kotlinx.coroutines.Dispatchers.Main) { if (running[s.id] === job) running.remove(s.id) } }
     }
 
     fun clearEvent() { _events.value = null }

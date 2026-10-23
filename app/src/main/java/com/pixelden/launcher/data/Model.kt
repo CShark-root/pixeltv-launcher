@@ -74,6 +74,9 @@ data class LauncherConfig(
     val showWidgets: Boolean = true,
     val widgets: List<String> = listOf("calendar", "rates", "timer", "health"),
 
+    /** Сторож памяти: при нехватке закрывает фоновые приложения. */
+    val memoryGuard: Boolean = false,
+
     // Настройка с телефона
     val webPanel: Boolean = true,
     /** PIN веб-панели; создаётся при первом запуске. */

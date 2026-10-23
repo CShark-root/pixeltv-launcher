@@ -51,7 +51,8 @@ object DebugLog {
     fun clear() = synchronized(this) { buffer.clear(); _entries.value = emptyList() }
 
     private val fmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
-    fun format(e: Entry) = "${fmt.format(Date(e.time))} ${if (e.error) "!" else " "} ${e.msg}"
+    // SimpleDateFormat не потокобезопасен, а журнал читают и интерфейс, и веб-панель.
+    fun format(e: Entry) = synchronized(fmt) { "${fmt.format(Date(e.time))} ${if (e.error) "!" else " "} ${e.msg}" }
 
     /** Конфиг + журнал + состояние служб — в /sdcard/Download/pixelden-debug.txt. */
     fun dumpToFile(context: Context, cfg: LauncherConfig): File {

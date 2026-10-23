@@ -56,6 +56,8 @@ class WebServer(private val app: PixelDenApp) {
     private var server: ServerSocket? = null
     // Не больше четырёх запросов одновременно: телефону хватит, а ТВ не захлебнётся.
     private val pool = Executors.newFixedThreadPool(4)
+    /** Неудачные попытки PIN по адресам: число ошибок и до какого времени вход закрыт. */
+    private val fails = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Long>>()
 
     val running get() = server?.isClosed == false
 
@@ -91,6 +93,7 @@ class WebServer(private val app: PixelDenApp) {
         val body: InputStream,
         val length: Long,
     ) {
+        var ip: String = ""
         fun text(limit: Int = 2_000_000): String {
             if (length > limit) error("слишком большой запрос")
             val buf = ByteArray(length.toInt())
@@ -121,6 +124,7 @@ class WebServer(private val app: PixelDenApp) {
             val input = BufferedInputStream(sock.getInputStream())
             val out = sock.getOutputStream()
             val req = try { parse(input) } catch (e: Exception) { return } ?: return
+            req.ip = sock.inetAddress?.hostAddress.orEmpty()
             try {
                 route(req, out)
             } catch (e: Exception) {
@@ -162,11 +166,22 @@ class WebServer(private val app: PixelDenApp) {
             }
             return
         }
+        // Подбор PIN: после 10 ошибок с одного адреса — пауза 5 минут (4 цифры иначе перебираются за минуты).
+        val now = System.currentTimeMillis()
+        val lock = fails[req.ip]
+        if (lock != null && lock.second > now) {
+            json(out, 429, buildJsonObject { put("error", "Слишком много неверных PIN. Подождите 5 минут.") })
+            return
+        }
         val pin = req.headers["x-pin"] ?: req.query["pin"]
         if (pin != cfg.webPin) {
+            val n = (lock?.first ?: 0) + 1
+            fails[req.ip] = if (n >= 10) 0 to now + 5 * 60_000L else n to 0L
+            if (n >= 10) DebugLog.e("веб-панель: подбор PIN с ${req.ip}, вход закрыт на 5 минут")
             json(out, 401, buildJsonObject { put("error", "Неверный PIN. Он показан на ТВ: Настройки → С телефона") })
             return
         }
+        fails.remove(req.ip)
         when ("${req.method} ${req.path}") {
             "GET /api/state" -> json(out, 200, state(cfg))
             "POST /api/config" -> {
@@ -276,7 +291,9 @@ class WebServer(private val app: PixelDenApp) {
             app.scope.launch { app.weather.refresh() }
         }
         if (next.talkNews && !old.talkNews) app.news.start()
+        if (!next.talkNews && old.talkNews) app.news.stop()
         if (!next.webPanel) app.scope.launch { kotlinx.coroutines.delay(500); stop() }
+        com.pixelden.launcher.system.MemoryGuard.apply(next.memoryGuard)
         Scheduler.scheduleAll(app, next)
         app.engine.notify("Настройки пришли с телефона!")
     }
@@ -341,7 +358,7 @@ class WebServer(private val app: PixelDenApp) {
         send(out, code, "application/json; charset=utf-8", body.toString().toByteArray())
 
     private fun send(out: OutputStream, code: Int, type: String, body: ByteArray, cache: Boolean = false) {
-        val status = when (code) { 200 -> "OK"; 401 -> "Unauthorized"; 404 -> "Not Found"; 409 -> "Conflict"; else -> "Error" }
+        val status = when (code) { 200 -> "OK"; 401 -> "Unauthorized"; 404 -> "Not Found"; 409 -> "Conflict"; 429 -> "Too Many Requests"; else -> "Error" }
         val head = "HTTP/1.1 $code $status\r\n" +
             "Content-Type: $type\r\n" +
             "Content-Length: ${body.size}\r\n" +
