@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.pixelden.launcher.ui
 
 import android.content.Intent
@@ -56,6 +58,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -478,6 +481,8 @@ private fun AppCard(
     // Запуск: короткая вспышка и лёгкое увеличение, приложение открывается в конце вспышки.
     val launchP = remember { Animatable(0f) }
     val cardScope = rememberCoroutineScope()
+    // В кадр доводим карточку вместе с подписью: иначе у нижнего ряда подпись уходила за край экрана.
+    val bringLabel = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     fun launchWithFlash() {
         if (!t.animations) { onClick(); return }
         cardScope.launch {
@@ -489,7 +494,7 @@ private fun AppCard(
         }
     }
 
-    Column(Modifier.width(width).graphicsLayer { alpha = cardAlpha }) {
+    Column(Modifier.width(width).bringIntoViewRequester(bringLabel).graphicsLayer { alpha = cardAlpha }) {
         Box(
             Modifier
                 .size(width, height)
@@ -499,7 +504,10 @@ private fun AppCard(
                 .tvClickable(
                     onFocus = {
                         focused = it
-                        if (it) { CardFocus.key = key; onFocused() } else if (CardFocus.key == key) CardFocus.key = null
+                        if (it) {
+                            CardFocus.key = key; onFocused()
+                            cardScope.launch { delay(30); bringLabel.bringIntoView() }
+                        } else if (CardFocus.key == key) CardFocus.key = null
                     },
                     onLongClick = onLong,
                     onClick = { launchWithFlash() },
