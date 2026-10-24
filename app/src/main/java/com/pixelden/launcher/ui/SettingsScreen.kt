@@ -340,6 +340,22 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
 
             if (page == "perm") {
                 item {
+                    SettingRow(
+                        "Выдать все права автоматически",
+                        hint = "Через отладку самого ТВ, компьютер не нужен. Нужна «Отладка по сети» в «Для разработчиков»; ТВ один раз спросит «Разрешить отладку?» — отметьте «Всегда».",
+                    ) {
+                        toast(context, "Выдаю права… Если ТВ спросит разрешение — нажмите OK")
+                        pageScope.launch {
+                            val msg = withContext(Dispatchers.IO) {
+                                runCatching { com.pixelden.launcher.system.Setup.grantAll(context) }.getOrElse {
+                                    if (it is java.net.ConnectException) "Включите «Отладку по сети» в настройках «Для разработчиков»" else "Не вышло: ${it.message}"
+                                }
+                            }
+                            toast(context, msg)
+                        }
+                    }
+                }
+                item {
                     val on = DenAccessibilityService.instance != null
                     SettingRow(
                         "Служба кнопок и сценариев", if (on) "работает" else "выключена",
@@ -441,7 +457,33 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
             }
 
             if (page == "about") {
-                item { SettingRow("PixelTv ${BuildConfig.VERSION_NAME}", hint = "Шрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)") }
+                item { SettingRow("PixelTv ${BuildConfig.VERSION_NAME}", hint = "Открытый код (GPL-3.0): github.com/${BuildConfig.UPDATE_REPO.ifBlank { "…/pixeltv-launcher" }}\nШрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)") }
+                if (com.pixelden.launcher.system.Updater.enabled) {
+                    item {
+                        val st by com.pixelden.launcher.system.Updater.state.collectAsState()
+                        val (value, hint) = when (val s = st) {
+                            is com.pixelden.launcher.system.Updater.State.Available -> "есть ${s.release.version}" to ("OK — скачать и установить\n" + s.release.notes.take(300))
+                            is com.pixelden.launcher.system.Updater.State.Downloading -> "${s.percent}%" to "Скачиваю…"
+                            com.pixelden.launcher.system.Updater.State.Checking -> "…" to "Проверяю"
+                            com.pixelden.launcher.system.Updater.State.UpToDate -> "последняя" to "Установлена последняя версия"
+                            is com.pixelden.launcher.system.Updater.State.Failed -> "ошибка" to s.message
+                            com.pixelden.launcher.system.Updater.State.Idle -> "" to "OK — проверить сейчас"
+                        }
+                        SettingRow("Обновление", value, hint = hint) {
+                            when (val s = st) {
+                                is com.pixelden.launcher.system.Updater.State.Available -> pageScope.launch { com.pixelden.launcher.system.Updater.install(context, s.release) }
+                                is com.pixelden.launcher.system.Updater.State.Downloading, com.pixelden.launcher.system.Updater.State.Checking -> Unit
+                                else -> pageScope.launch { com.pixelden.launcher.system.Updater.check() }
+                            }
+                        }
+                    }
+                    item {
+                        ToggleRow("Проверять обновления сами", cfg.autoUpdate, "Раз в сутки; маскот скажет, если вышла новая версия") { v ->
+                            set { it.copy(autoUpdate = v) }
+                            com.pixelden.launcher.system.Updater.apply(v)
+                        }
+                    }
+                }
             }
         }
 

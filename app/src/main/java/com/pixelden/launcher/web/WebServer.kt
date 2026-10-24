@@ -296,6 +296,7 @@ class WebServer(private val app: PixelDenApp) {
         if (!next.talkNews && old.talkNews) app.news.stop()
         if (!next.webPanel) app.scope.launch { kotlinx.coroutines.delay(500); stop() }
         com.pixelden.launcher.system.MemoryGuard.apply(next.memoryGuard)
+        com.pixelden.launcher.system.Updater.apply(next.autoUpdate)
         Scheduler.scheduleAll(app, next)
         app.engine.notify("Настройки пришли с телефона!")
     }

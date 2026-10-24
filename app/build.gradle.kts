@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -13,8 +15,25 @@ android {
         applicationId = "com.pixelden.launcher"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 10
+        versionName = "0.9.0"
+        // Откуда приходят обновления (GitHub Releases).
+        buildConfigField("String", "UPDATE_REPO", "\"${providers.gradleProperty("pixeltv.repo").getOrElse("")}\"")
+    }
+
+    // Релизный ключ хранится вне репозитория: ~/.pixeltv/keystore.properties (или путь из PIXELTV_KEYSTORE).
+    // Без него релиз подписывается debug-ключом — так проект собирается у любого.
+    val keyProps = Properties().apply {
+        val f = file(System.getenv("PIXELTV_KEYSTORE") ?: "${System.getProperty("user.home")}/.pixeltv/keystore.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    signingConfigs {
+        if (keyProps.isNotEmpty()) create("release") {
+            storeFile = file(keyProps.getProperty("storeFile"))
+            storePassword = keyProps.getProperty("storePassword")
+            keyAlias = keyProps.getProperty("keyAlias")
+            keyPassword = keyProps.getProperty("keyPassword")
+        }
     }
 
     buildTypes {
@@ -22,8 +41,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Личная сборка: подписываем debug-ключом, чтобы ставить через adb без отдельного keystore.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

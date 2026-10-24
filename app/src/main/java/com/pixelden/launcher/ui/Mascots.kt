@@ -52,8 +52,8 @@ import kotlin.random.Random
 data class Mascot(val id: String, val name: String, val note: String)
 
 val MASCOTS = listOf(
-    Mascot("pinch", "Pinch", "Оранжевый кирпичик (в духе Claude)"),
-    Mascot("ember", "Ember", "Огненный лис (в духе Kit из Firefox)"),
+    Mascot("pinch", "Pinch", "Оранжевый кирпичик"),
+    Mascot("ember", "Ember", "Огненный лис"),
     Mascot("sprocket", "Sprocket", "Серый полосатый кот"),
     Mascot("nyx", "Nyx", "Чёрный кот с зелёными глазами"),
     Mascot("mango", "Mango", "Рыжий полосатый кот"),

@@ -2,7 +2,7 @@
 # Дымовой тест PixelDen на ТВ: обходит все экраны нажатиями и проверяет, что лаунчер не упал.
 # Запуск из папки platform-tools:  sh tvlauncher/tools/smoke-test.sh [ip:port] [папка-для-скриншотов]
 export MSYS_NO_PATHCONV=1
-S=${1:-192.168.1.51:5555}
+S=${1:?укажите адрес ТВ, например 192.168.1.10:5555}
 OUT=${2:-.}
 ADB="./adb.exe -s $S"
 PKG=com.pixelden.launcher
