@@ -93,7 +93,7 @@ class WeatherRepository(private val store: ConfigStore, private val scope: Corou
     /** Поиск города по названию (геокодер Open-Meteo, бесплатно). */
     suspend fun searchCity(query: String): List<Place> = withContext(Dispatchers.IO) {
         val q = URLEncoder.encode(query.trim(), "UTF-8")
-        val root = json.parseToJsonElement(get("https://geocoding-api.open-meteo.com/v1/search?name=$q&count=8&language=ru&format=json")).jsonObject
+        val root = json.parseToJsonElement(get("https://geocoding-api.open-meteo.com/v1/search?name=$q&count=8&language=${com.pixelden.launcher.i18n.I18n.lang}&format=json")).jsonObject
         root["results"]?.jsonArray?.map { el ->
             val o = el.jsonObject
             Place(

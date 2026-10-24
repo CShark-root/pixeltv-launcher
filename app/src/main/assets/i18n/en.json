@@ -755,5 +755,6 @@
 "растущая луна": "waxing gibbous",
 "растущий серп": "waxing crescent",
 "убывающая луна": "waning gibbous",
-"убывающий серп": "waning crescent"
+"убывающий серп": "waning crescent",
+"Курс к {0}": "Rates in {0}"
 }

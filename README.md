@@ -4,6 +4,17 @@ A pixel-art home screen for Android TV with a living mascot, scenarios, phone co
 
 [Русская версия ниже](#pixeltv-по-русски)
 
+![Home screen](docs/screenshots/home.jpg)
+
+| | |
+|---|---|
+| ![Live pixel scene](docs/screenshots/scene.jpg) | ![Settings](docs/screenshots/settings.jpg) |
+| *Live pixel landscape that follows the time of day* | *Settings hub* |
+| ![Setup wizard](docs/screenshots/wizard.jpg) | ![Mascot settings](docs/screenshots/mascot.jpg) |
+| *First-run setup wizard* | *Mascots: six pixel pets* |
+| ![TV cleanup](docs/screenshots/cleanup.jpg) | ![TV health](docs/screenshots/health.jpg) |
+| *TV cleanup with one-button restore* | *TV health and memory guard* |
+
 ## Features
 
 - **Home screen**: favorites, categories, inputs (HDMI/TV), all apps; hide and rename apps; pixel fonts, accents, focus effects (zoom, glow, glitch, CRT, pixel reveal).
