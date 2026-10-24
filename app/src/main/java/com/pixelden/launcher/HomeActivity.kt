@@ -87,7 +87,8 @@ class HomeActivity : ComponentActivity() {
 
             DenThemeProvider(theme) {
                 Box(Modifier.fillMaxSize()) {
-                    AnimatedContent(
+                    // Первый запуск — мастер настройки вместо главного экрана.
+                    if (!cfg.onboardingDone) com.pixelden.launcher.ui.OnboardingScreen(cfg) else AnimatedContent(
                         targetState = screen,
                         transitionSpec = { softTransition(if (theme.animations) cfg.screenTransition else "none") },
                         label = "screen",
@@ -155,7 +156,7 @@ class HomeActivity : ComponentActivity() {
         lastInput = SystemClock.uptimeMillis()
         if (idle) idle = false
         // Кнопка MENU на главном экране — сразу в настройки.
-        if (event.keyCode == KeyEvent.KEYCODE_MENU && event.action == KeyEvent.ACTION_UP && screen == Screen.Home) {
+        if (event.keyCode == KeyEvent.KEYCODE_MENU && event.action == KeyEvent.ACTION_UP && screen == Screen.Home && PixelDenApp.instance.store.current.onboardingDone) {
             go(Screen.Settings())
             return true
         }

@@ -8,6 +8,9 @@ import kotlinx.serialization.Serializable
 data class LauncherConfig(
     /** Язык интерфейса: auto (как в системе), ru, en. */
     val language: String = "auto",
+    /** Мастер первого запуска пройден; [onboardingStep] — где продолжить (после смены языка лаунчер перезапускается). */
+    val onboardingDone: Boolean = false,
+    val onboardingStep: Int = 0,
 
     // Маскот
     val mascot: String = "pinch",
@@ -106,7 +109,7 @@ data class LauncherConfig(
 )
 
 object Defaults {
-    const val VERSION = 7
+    const val VERSION = 8
 
     /** Пустышки обязательной предустановки и системные пакеты, которым не место на главном экране. */
     val JUNK = listOf(
@@ -131,6 +134,8 @@ object Defaults {
         if (c.webPin.isBlank()) c = c.copy(webPin = newPin())
         // v7: плитка праздников вернулась (v6 её убирал) — ставим первой.
         if (c.defaultsVersion < 7 && "calendar" !in c.widgets) c = c.copy(widgets = listOf("calendar") + c.widgets)
+        // v8: мастер первого запуска — только для новых установок; уже настроенным он не нужен.
+        if (c.defaultsVersion in 1..7) c = c.copy(onboardingDone = true)
         return c.copy(defaultsVersion = VERSION)
     }
 

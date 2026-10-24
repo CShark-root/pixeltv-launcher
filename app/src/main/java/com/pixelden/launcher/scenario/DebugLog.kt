@@ -137,6 +137,7 @@ class DebugReceiver : BroadcastReceiver() {
                 // Язык, сценарии и службы подхватятся с нуля.
                 if (r.isSuccess) app.scope.launch { kotlinx.coroutines.delay(500); android.os.Process.killProcess(android.os.Process.myPid()) }
             }
+            "com.pixelden.launcher.ONBOARD" -> app.store.update { it.copy(onboardingDone = false, onboardingStep = 0) }
             "com.pixelden.launcher.KEYLOG" -> {
                 DebugLog.logKeys = intent.getBooleanExtra("on", true)
                 DebugLog.i("журнал кнопок: ${if (DebugLog.logKeys) "вкл" else "выкл"}")

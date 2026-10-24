@@ -490,6 +490,7 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
 
             if (page == "about") {
                 item { SettingRow("PixelTv ${BuildConfig.VERSION_NAME}", hint = tr("Открытый код (GPL-3.0): github.com/{0}\nШрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)", (BuildConfig.UPDATE_REPO.ifBlank { "…/pixeltv-launcher" }))) }
+                item { SettingRow(tr("Пройти мастер настройки заново"), hint = tr("Язык, права, маскот, погода, избранное, чистка")) { set { it.copy(onboardingDone = false, onboardingStep = 0) } } }
                 if (com.pixelden.launcher.system.Updater.enabled) {
                     item {
                         val st by com.pixelden.launcher.system.Updater.state.collectAsState()
