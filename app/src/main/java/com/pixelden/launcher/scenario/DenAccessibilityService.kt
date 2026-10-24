@@ -1,5 +1,6 @@
 package com.pixelden.launcher.scenario
 
+import com.pixelden.launcher.i18n.tr
 import android.accessibilityservice.AccessibilityService
 import android.os.SystemClock
 import android.view.KeyEvent
@@ -42,7 +43,7 @@ class DenAccessibilityService : AccessibilityService() {
             putCharSequence(android.view.accessibility.AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value)
         }
         val ok = node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        DebugLog.i("текст с телефона (${text.length} симв.) → ${node.packageName}: ${if (ok) "вписан" else "не принят"}")
+        DebugLog.i("текст с телефона (${text.length} симв.) → ${node.packageName}: ${if (ok) tr("вписан") else tr("не принят")}")
         return ok
     }
 
@@ -62,9 +63,9 @@ class DenAccessibilityService : AccessibilityService() {
         val bindings = app.engine.keyBindings(code)
         if (DebugLog.logKeys && event.repeatCount == 0) {
             DebugLog.i(
-                "кнопка ${KeyEvent.keyCodeToString(event.keyCode)} (${code}" + (if (code >= SCAN_BASE) ", скан-код ${event.scanCode}" else "") + ") " +
+                tr("кнопка {0} ({1}", (KeyEvent.keyCodeToString(event.keyCode)), (code)) + (if (code >= SCAN_BASE) tr(", скан-код {0}", (event.scanCode)) else "") + ") " +
                     (if (event.action == KeyEvent.ACTION_DOWN) "↓" else "↑") +
-                    if (bindings.isEmpty()) "" else " → привязано: " + bindings.map { "${it.key}: ${it.value.name}" }.joinToString()
+                    if (bindings.isEmpty()) "" else tr(" → привязано: ") + bindings.map { "${it.key}: ${it.value.name}" }.joinToString()
             )
         }
         if (bindings.isEmpty() && capturedCode != code) return false
@@ -86,13 +87,13 @@ class DenAccessibilityService : AccessibilityService() {
                     // умеем повторить сами (Назад, Домой, OK) — тогда короткое нажатие выполним вместо системы.
                     val take = short != null || doubleHit || ((long != null || double != null) && canEmulate(event.keyCode))
                     capturedCode = if (take) code else -1
-                    if (doubleHit) app.engine.run(double!!, "кнопка ×2")
+                    if (doubleHit) app.engine.run(double!!, tr("кнопка ×2"))
                     return take
                 }
                 // Пульты с автоповтором: удержание видно ещё до отпускания.
                 if (long != null && !longFired && !doubleHit && now - downAt >= 600) {
                     longFired = true
-                    app.engine.run(long, "кнопка удержание")
+                    app.engine.run(long, tr("кнопка удержание"))
                 }
                 return capturedCode == code
             }
@@ -105,9 +106,9 @@ class DenAccessibilityService : AccessibilityService() {
                 if (doubleHit) { doubleHit = false; return wasCaptured }
                 if (!longFired && long != null && held) {
                     // Пульт Xiaomi не шлёт автоповтор — удержание узнаём по длительности при отпускании.
-                    app.engine.run(long, "кнопка удержание")
+                    app.engine.run(long, tr("кнопка удержание"))
                 } else if (!longFired && wasCaptured) {
-                    if (short != null) app.engine.run(short, "кнопка") else emulate(event.keyCode)
+                    if (short != null) app.engine.run(short, tr("кнопка")) else emulate(event.keyCode)
                 }
                 return wasCaptured
             }

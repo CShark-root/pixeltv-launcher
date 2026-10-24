@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,8 +50,8 @@ fun CleanupPanel(cfg: LauncherConfig) {
         scope.launch {
             val msg = withContext(Dispatchers.IO) {
                 runCatching(block).getOrElse { e ->
-                    if (e is java.net.ConnectException) "Отладка по сети на ТВ выключена: включите её в «Для разработчиков»"
-                    else "Не вышло: ${e.message ?: e.javaClass.simpleName}"
+                    if (e is java.net.ConnectException) tr("Отладка по сети на ТВ выключена: включите её в «Для разработчиков»")
+                    else tr("Не вышло: {0}", (e.message ?: e.javaClass.simpleName))
                 }
             }
             busy = null
@@ -61,37 +62,37 @@ fun CleanupPanel(cfg: LauncherConfig) {
 
     Column(Modifier.fillMaxWidth()) {
         PText(
-            busy?.let { "$it… Если ТВ спросит «Разрешить отладку?» — отметьте «Всегда» и нажмите OK." }
-                ?: "Приложения не удаляются, а отключаются. Сеть, звук, HDMI, пульт и Google Play не трогаются.",
+            busy?.let { tr("{0}… Если ТВ спросит «Разрешить отладку?» — отметьте «Всегда» и нажмите OK.", it) }
+                ?: tr("Приложения не удаляются, а отключаются. Сеть, звук, HDMI, пульт и Google Play не трогаются."),
             14.sp, if (busy != null) t.colors.accent else t.colors.dim, Modifier.padding(4.dp, 0.dp, 0.dp, 10.dp), maxLines = 3,
         )
         val recommended = states.count { it.enabled && it.item.recommended }
-        SettingRow("Отключить рекомендуемое", if (recommended > 0) "$recommended шт." else "готово",
-            hint = "Реклама, аналитика, PatchWall, лишнее от Google и предустановки") {
-            act("Отключаю") { "Отключено: ${TvCleanup.disableRecommended(context)}" }
+        SettingRow(tr("Отключить рекомендуемое"), if (recommended > 0) tr("{0} шт.", recommended) else tr("готово"),
+            hint = tr("Реклама, аналитика, PatchWall, лишнее от Google и предустановки")) {
+            act(tr("Отключаю")) { tr("Отключено: {0}", (TvCleanup.disableRecommended(context))) }
         }
-        SettingRow("Вернуть всё как было", "${cfg.cleanupDisabled.size} шт.",
-            hint = "Включит всё, что отключила чистка") {
-            act("Возвращаю") { "Возвращено: ${TvCleanup.restoreAll(context)}" }
+        SettingRow(tr("Вернуть всё как было"), tr("{0} шт.", (cfg.cleanupDisabled.size)),
+            hint = tr("Включит всё, что отключила чистка")) {
+            act(tr("Возвращаю")) { tr("Возвращено: {0}", (TvCleanup.restoreAll(context))) }
         }
-        SettingRow("Очистить кэш приложений", hint = "Временные файлы всех приложений, ничего важного не теряется") {
-            act("Чищу кэш") { "Освобождено ${mb(TvCleanup.trimCaches(context))} МБ" }
+        SettingRow(tr("Очистить кэш приложений"), hint = tr("Временные файлы всех приложений, ничего важного не теряется")) {
+            act(tr("Чищу кэш")) { tr("Освобождено {0} МБ", (mb(TvCleanup.trimCaches(context)))) }
         }
-        SettingRow("Удалить установщики APK", if (apks.second > 0) "${apks.second} шт. · ${mb(apks.first)} МБ" else "нет",
-            hint = "Файлы .apk из «Загрузок»: приложения уже установлены") {
-            act("Удаляю") { "Удалено ${mb(TvCleanup.deleteApks())} МБ" }
+        SettingRow(tr("Удалить установщики APK"), if (apks.second > 0) tr("{0} шт. · {1} МБ", (apks.second), (mb(apks.first))) else tr("нет"),
+            hint = tr("Файлы .apk из «Загрузок»: приложения уже установлены")) {
+            act(tr("Удаляю")) { tr("Удалено {0} МБ", (mb(TvCleanup.deleteApks()))) }
         }
-        SettingRow("Проверить доступ", hint = "Подключиться к системе ТВ — при первом разе ТВ спросит разрешение") {
-            act("Подключаюсь") { if (AdbClient(context).shell("echo ok").trim() == "ok") "Доступ есть" else "Нет ответа" }
+        SettingRow(tr("Проверить доступ"), hint = tr("Подключиться к системе ТВ — при первом разе ТВ спросит разрешение")) {
+            act(tr("Подключаюсь")) { if (AdbClient(context).shell("echo ok").trim() == "ok") tr("Доступ есть") else tr("Нет ответа") }
         }
 
         states.groupBy { it.item.group }.forEach { (group, list) ->
             SectionTitle(group)
             list.forEach { s ->
-                ToggleRow(s.item.name + if (s.item.recommended) "" else " (по желанию)", s.enabled, s.item.pkg) { on ->
-                    act(if (on) "Включаю" else "Отключаю") {
-                        if (on) { TvCleanup.enable(context, s.item.pkg); "Включено: ${s.item.name}" }
-                        else { TvCleanup.disable(context, s.item.pkg); "Отключено: ${s.item.name}" }
+                ToggleRow(s.item.name + if (s.item.recommended) "" else tr(" (по желанию)"), s.enabled, s.item.pkg) { on ->
+                    act(if (on) tr("Включаю") else tr("Отключаю")) {
+                        if (on) { TvCleanup.enable(context, s.item.pkg); tr("Включено: {0}", (s.item.name)) }
+                        else { TvCleanup.disable(context, s.item.pkg); tr("Отключено: {0}", (s.item.name)) }
                     }
                 }
             }

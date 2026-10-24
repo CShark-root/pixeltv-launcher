@@ -2,6 +2,7 @@
 
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -170,9 +171,9 @@ fun HomeScreen(
             }
             if (cfg.showFavorites) {
                 item {
-                    RowTitle("Избранное")
+                    RowTitle(tr("Избранное"))
                     if (favorites.isEmpty()) {
-                        PText("Удерживайте OK на приложении → «В избранное»", 14.sp, t.colors.dim, Modifier.padding(bottom = 18.dp))
+                        PText(tr("Удерживайте OK на приложении → «В избранное»"), 14.sp, t.colors.dim, Modifier.padding(bottom = 18.dp))
                     } else {
                         AppRow(favorites, "fav", cfg, 4, restoreKey,
                             onFocus = { e, k -> focusedLabel = labelOf(cfg, e); focusedPkg = e.pkg; lastFocusKey = k; scrollTop() },
@@ -182,7 +183,7 @@ fun HomeScreen(
             }
             if (cfg.showInputs && inputs.isNotEmpty()) {
                 item {
-                    RowTitle("Входы")
+                    RowTitle(tr("Входы"))
                     InputRow(inputs) { i -> jump++; runCatching { context.startActivity(app.apps.inputIntent(i.id)) } }
                 }
             }
@@ -201,7 +202,7 @@ fun HomeScreen(
             if (cfg.showAllApps) {
                 // Избранное не дублируем в общей сетке.
                 val rest = visible.filter { it.pkg !in cfg.favorites }
-                item { RowTitle("Все приложения · ${rest.size}") }
+                item { RowTitle(tr("Все приложения · {0}", (rest.size))) }
                 item {
                     AppGrid(rest, cfg, restoreKey,
                         onFocus = { e, k -> focusedLabel = labelOf(cfg, e); focusedPkg = e.pkg; lastFocusKey = k },
@@ -220,7 +221,7 @@ fun HomeScreen(
         }
         renameFor?.let { entry ->
             TextEditOverlay(
-                "Название для ${entry.label}",
+                tr("Название для {0}", (entry.label)),
                 cfg.renamed[entry.pkg] ?: entry.label,
                 onDismiss = { renameFor = null; focusOn(lastFocusKey) },
             ) { name ->
@@ -262,7 +263,7 @@ private fun Header(
         val base = if (cfg.clock24h) "HH:mm" else "h:mm"
         SimpleDateFormat(if (cfg.showSeconds) "$base:ss" else base, Locale.getDefault())
     }
-    val dateFmt = remember { SimpleDateFormat("EEEE, d MMMM", Locale("ru")) }
+    val dateFmt = remember { SimpleDateFormat("EEEE, d MMMM", Locale(com.pixelden.launcher.i18n.I18n.lang)) }
 
     val app = PixelDenApp.instance
     val weather by app.weather.now.collectAsState()
@@ -341,9 +342,9 @@ private fun Header(
                     },
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                PButton("Сценарии", size = 14.sp, onClick = onOpenScenarios)
-                PButton("Настройки", size = 14.sp, onClick = onOpenSettings)
-                PButton("ТВ", size = 14.sp) {
+                PButton(tr("Сценарии"), size = 14.sp, onClick = onOpenScenarios)
+                PButton(tr("Настройки"), size = 14.sp, onClick = onOpenSettings)
+                PButton(tr("ТВ"), size = 14.sp) {
                     runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
                 }
             }
@@ -584,17 +585,17 @@ private fun AppMenu(entry: AppEntry, cfg: LauncherConfig, onDismiss: () -> Unit,
 
     Overlay(cfg.renamed[entry.pkg] ?: entry.label, onDismiss) {
         item {
-            SettingRow(if (isFav) "Убрать из избранного" else "В избранное", focusRequester = fr) {
+            SettingRow(if (isFav) tr("Убрать из избранного") else tr("В избранное"), focusRequester = fr) {
                 store.update { if (isFav) it.copy(favorites = it.favorites - entry.pkg) else it.copy(favorites = it.favorites + entry.pkg) }
                 onDismiss()
             }
         }
         if (isFav) {
-            item { SettingRow("Сдвинуть в избранном", value = "< >", onLeft = { moveFav(-1) }, onRight = { moveFav(1) }) }
+            item { SettingRow(tr("Сдвинуть в избранном"), value = "< >", onLeft = { moveFav(-1) }, onRight = { moveFav(1) }) }
         }
         items(cfg.categories, key = { it.id }) { cat ->
             val inCat = entry.pkg in cat.apps
-            SettingRow(if (inCat) "Убрать из «${cat.name}»" else "В категорию «${cat.name}»") {
+            SettingRow(if (inCat) tr("Убрать из «{0}»", (cat.name)) else tr("В категорию «{0}»", (cat.name))) {
                 store.update { c ->
                     c.copy(categories = c.categories.map {
                         if (it.id != cat.id) it else it.copy(apps = if (inCat) it.apps - entry.pkg else it.apps + entry.pkg)
@@ -604,20 +605,20 @@ private fun AppMenu(entry: AppEntry, cfg: LauncherConfig, onDismiss: () -> Unit,
             }
         }
         item {
-            SettingRow("Новая категория с этим приложением") {
-                store.update { it.copy(categories = it.categories + Category(Templates.newId(), "Категория ${it.categories.size + 1}", listOf(entry.pkg))) }
+            SettingRow(tr("Новая категория с этим приложением")) {
+                store.update { it.copy(categories = it.categories + Category(Templates.newId(), tr("Категория {0}", (it.categories.size + 1)), listOf(entry.pkg))) }
                 onDismiss()
             }
         }
-        item { SettingRow("Переименовать", onClick = onRename) }
+        item { SettingRow(tr("Переименовать"), onClick = onRename) }
         item {
-            SettingRow("Скрыть") {
+            SettingRow(tr("Скрыть")) {
                 store.update { it.copy(hidden = it.hidden + entry.pkg, favorites = it.favorites - entry.pkg) }
                 onDismiss()
             }
         }
         item {
-            SettingRow("О приложении") {
+            SettingRow(tr("О приложении")) {
                 runCatching {
                     context.startActivity(
                         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${entry.pkg}"))
@@ -628,14 +629,14 @@ private fun AppMenu(entry: AppEntry, cfg: LauncherConfig, onDismiss: () -> Unit,
             }
         }
         item {
-            SettingRow("Удалить") {
+            SettingRow(tr("Удалить")) {
                 runCatching {
                     context.startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:${entry.pkg}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 }
                 onDismiss()
             }
         }
-        item { SettingRow("Закрыть", onClick = onDismiss) }
+        item { SettingRow(tr("Закрыть"), onClick = onDismiss) }
     }
 }
 
@@ -652,7 +653,7 @@ private fun WeatherLine(cfg: LauncherConfig) {
         Column(Modifier.padding(start = 10.dp)) {
             PText((if (now.temp > 0) "+" else "") + "${now.temp}°  ${now.sky.text}", 18.sp, t.colors.dim)
             val extra = listOfNotNull(
-                now.feelsLike?.takeIf { it != now.temp }?.let { "ощущается ${if (it > 0) "+" else ""}$it°" },
+                now.feelsLike?.takeIf { it != now.temp }?.let { tr("ощущается {0}{1}°", (if (it > 0) "+" else ""), it) },
                 cfg.weatherCity,
             ).joinToString(" · ")
             if (extra.isNotEmpty()) PText(extra, 14.sp, t.colors.dim.copy(alpha = 0.75f))

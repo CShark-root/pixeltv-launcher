@@ -1,5 +1,6 @@
 package com.pixelden.launcher.weather
 
+import com.pixelden.launcher.i18n.tr
 import com.pixelden.launcher.data.ConfigStore
 import com.pixelden.launcher.scenario.DebugLog
 import kotlinx.coroutines.CoroutineScope
@@ -26,8 +27,8 @@ import kotlin.math.roundToInt
 
 /** Состояние погоды, общее для Яндекса и Open-Meteo. */
 enum class Sky(val text: String) {
-    CLEAR("ясно"), PARTLY("малооблачно"), CLOUDY("облачно"), OVERCAST("пасмурно"),
-    FOG("туман"), DRIZZLE("морось"), RAIN("дождь"), SNOW("снег"), SLEET("мокрый снег"), THUNDER("гроза"),
+    CLEAR(tr("ясно")), PARTLY(tr("малооблачно")), CLOUDY(tr("облачно")), OVERCAST(tr("пасмурно")),
+    FOG(tr("туман")), DRIZZLE(tr("морось")), RAIN(tr("дождь")), SNOW(tr("снег")), SLEET(tr("мокрый снег")), THUNDER(tr("гроза")),
 }
 
 data class WeatherNow(
@@ -130,7 +131,7 @@ class WeatherRepository(private val store: ConfigStore, private val scope: Corou
             feelsLike = fact["feels_like"]?.jsonPrimitive?.doubleOrNull?.roundToInt(),
             sky = yandexSky(fact.str("condition") ?: "clear"),
             isDay = fact.str("daytime") != "n",
-            source = "Яндекс Погода",
+            source = tr("Яндекс Погода"),
             updatedAt = System.currentTimeMillis(),
         )
     }
@@ -145,7 +146,7 @@ class WeatherRepository(private val store: ConfigStore, private val scope: Corou
             val code = c.responseCode
             if (code !in 200..299) {
                 val msg = c.errorStream?.bufferedReader()?.use { it.readText() }?.take(200)
-                error(if (code == 403 || code == 401) "ключ не подошёл (HTTP $code)" else "HTTP $code ${msg ?: ""}")
+                error(if (code == 403 || code == 401) tr("ключ не подошёл (HTTP {0})", code) else "HTTP $code ${msg ?: ""}")
             }
             return c.inputStream.bufferedReader().use { it.readText() }
         } finally {

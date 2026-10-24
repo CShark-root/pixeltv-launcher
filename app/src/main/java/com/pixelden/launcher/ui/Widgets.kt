@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -121,7 +122,7 @@ fun SettingRow(
 fun ToggleRow(label: String, value: Boolean, hint: String? = null, onChange: (Boolean) -> Unit) {
     SettingRow(
         label = label,
-        value = if (value) "ВКЛ" else "ВЫКЛ",
+        value = if (value) tr("ВКЛ") else tr("ВЫКЛ"),
         hint = hint,
         onLeft = { onChange(!value) },
         onRight = { onChange(!value) },
@@ -208,8 +209,8 @@ fun TextEditOverlay(
             )
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PButton("Готово") { onDone(text) }
-                PButton("Отмена", onClick = onDismiss)
+                PButton(tr("Готово")) { onDone(text) }
+                PButton(tr("Отмена"), onClick = onDismiss)
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -40,28 +41,28 @@ fun DebugLogScreen() {
 
     Box(Modifier.fillMaxSize().background(t.colors.bg), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.widthIn(max = 1200.dp).fillMaxSize(), contentPadding = PaddingValues(40.dp, 32.dp)) {
-            item { PText("Журнал", 40.sp) }
+            item { PText(tr("Журнал"), 40.sp) }
             item {
                 PText(
-                    "Служба кнопок: ${if (service) "работает" else "ВЫКЛЮЧЕНА"} · записей: ${entries.size}",
+                    tr("Служба кнопок: {0} · записей: {1}", (if (service) tr("работает") else tr("ВЫКЛЮЧЕНА")), (entries.size)),
                     15.sp, if (service) t.colors.dim else t.colors.accent, Modifier.padding(bottom = 12.dp),
                 )
             }
             item {
                 Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PButton(if (keys) "Кнопки: пишутся" else "Кнопки: не пишутся", Modifier.focusRequester(first), size = 14.sp) {
+                    PButton(if (keys) tr("Кнопки: пишутся") else tr("Кнопки: не пишутся"), Modifier.focusRequester(first), size = 14.sp) {
                         DebugLog.logKeys = !DebugLog.logKeys
                         keys = DebugLog.logKeys
-                        DebugLog.i("журнал кнопок: ${if (keys) "вкл" else "выкл"}")
+                        DebugLog.i("журнал кнопок: ${if (keys) tr("вкл") else tr("выкл")}")
                     }
-                    PButton("Очистить", size = 14.sp) { DebugLog.clear() }
-                    PButton("Сохранить в файл", size = 14.sp) {
+                    PButton(tr("Очистить"), size = 14.sp) { DebugLog.clear() }
+                    PButton(tr("Сохранить в файл"), size = 14.sp) {
                         val f = DebugLog.dumpToFile(context, PixelDenApp.instance.store.current)
-                        Toast.makeText(context, "Сохранено: ${f.absolutePath}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, tr("Сохранено: {0}", (f.absolutePath)), Toast.LENGTH_LONG).show()
                     }
                 }
             }
-            if (entries.isEmpty()) item { PText("Пока пусто. Запустите сценарий или включите запись кнопок и понажимайте пульт.", 15.sp, t.colors.dim, maxLines = 3) }
+            if (entries.isEmpty()) item { PText(tr("Пока пусто. Запустите сценарий или включите запись кнопок и понажимайте пульт."), 15.sp, t.colors.dim, maxLines = 3) }
             items(entries.asReversed()) { e ->
                 PText(
                     DebugLog.format(e),

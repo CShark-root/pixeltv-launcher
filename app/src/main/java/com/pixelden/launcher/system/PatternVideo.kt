@@ -1,5 +1,6 @@
 package com.pixelden.launcher.system
 
+import com.pixelden.launcher.i18n.tr
 import android.graphics.Bitmap
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
@@ -44,7 +45,7 @@ object PatternVideo {
                     val i = codec.dequeueInputBuffer(10_000)
                     if (i >= 0) {
                         if (fed < FRAMES) {
-                            val img = codec.getInputImage(i) ?: error("кодировщик не дал кадр")
+                            val img = codec.getInputImage(i) ?: error(tr("кодировщик не дал кадр"))
                             fill(img, y, u, v, w, h)
                             codec.queueInputBuffer(i, 0, w * h * 3 / 2, fed * FRAME_US, 0)
                             fed++
@@ -72,7 +73,7 @@ object PatternVideo {
             runCatching { if (track >= 0) muxer.stop() }
             muxer.release()
         }
-        if (!tmp.renameTo(out)) error("не удалось сохранить ${out.name}")
+        if (!tmp.renameTo(out)) error(tr("не удалось сохранить {0}", (out.name)))
     }
 
     /** RGB → Y'CbCr BT.709 в ограниченном диапазоне (16–235 / 16–240), цвет — по среднему из квадрата 2×2. */

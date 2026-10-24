@@ -174,7 +174,7 @@ function rRemote() {
     <button class="btn" onclick="nav('back')">Назад</button>
     <button class="btn" onclick="nav('home')">Домой</button>
     <button class="btn" onclick="nav('recents')">Недавние</button>
-    <button class="btn" onclick="if(confirm('Усыпить телевизор?'))nav('sleep')">Сон</button>
+    <button class="btn" onclick="if(confirm(T('Усыпить телевизор?')))nav('sleep')">Сон</button>
   </div>
   <h2>Таймер сна</h2>
   <div class="card">
@@ -217,7 +217,7 @@ function rApps() {
     <div class="row"><input type="text" value="${esc(c.name)}" onchange="C.categories[${i}].name=this.value;touch()">
       <button class="btn small" onclick="catApps=catApps===${i}?null:${i};rApps()">${c.apps.length} прил.</button>
       <button class="btn small" ${i ? '' : 'disabled'} onclick="moveCat(${i},-1)">▲</button>
-      <button class="btn small bad" onclick="if(confirm('Удалить категорию?')){C.categories.splice(${i},1);touch();rApps()}">✕</button></div>
+      <button class="btn small bad" onclick="if(confirm(T('Удалить категорию?'))){C.categories.splice(${i},1);touch();rApps()}">✕</button></div>
     ${catApps === i ? `<div style="max-height:320px;overflow:auto;padding:6px 0">${S.apps.map(a => `
       <label class="row"><input type="checkbox" ${c.apps.includes(a.pkg) ? 'checked' : ''} onchange="toggleCat(${i},'${a.pkg}',this.checked)">${esc(appName(a.pkg))}</label>`).join('')}</div>` : ''}`).join('')}
     <div class="row"><button class="btn" onclick="C.categories.push({id:uid(),name:'Категория '+(C.categories.length+1),apps:[]});touch();rApps()">+ Новая категория</button></div></div>
@@ -389,7 +389,7 @@ async function uploadWall(file) {
   } catch (e) { $('#upState').textContent = 'Ошибка: ' + e.message; }
 }
 async function delWall(p) {
-  if (!confirm('Удалить картинку с ТВ?')) return;
+  if (!confirm(T('Удалить картинку с ТВ?'))) return;
   try { await api('/api/wallpaper/delete?path=' + encodeURIComponent(p), { method: 'POST' }); await load(); } catch (e) { toast(e.message); }
 }
 
@@ -405,11 +405,14 @@ function sel(k, label, opts) {
 }
 function rSet() {
   $('#t-set').innerHTML = `
+  <h2>Язык / Language</h2><div class="card">${sel('language', 'Язык', S.languages)}<p class="hint">Лаунчер перезапустится</p></div>
   <h2>Маскот</h2><div class="card">
     ${sel('mascot', 'Кто живёт', S.mascots)}
     ${chk('mascotEnabled', 'Показывать')}${chk('mascotSpeaks', 'Разговаривает')}
     ${sel('mascotChatter', 'Болтливость', ['молчит', 'редко', 'обычно', 'болтун'].map((n, i) => ({ id: i, name: n })))}
-    ${chk('talkFacts', 'Факты')}${chk('talkHolidays', 'Праздники')}${chk('talkNews', 'Новости', 'Заголовки Ленты.ру')}
+    ${chk('talkFacts', 'Факты')}${chk('talkHolidays', 'Праздники')}${chk('talkNews', 'Новости', 'Заголовки выбранного источника, обновляются раз в час')}
+    ${sel('newsSource', 'Источник новостей', S.newsSources)}
+    <div class="row"><input type="text" placeholder="https://…/rss" value="${esc(C.newsCustomUrl)}" onchange="C.newsCustomUrl=this.value.trim();touch()"></div>
     ${chk('mascotNamesApps', 'Называть приложение в фокусе')}${chk('greeting', 'Приветствие при запуске')}
     ${numIn('mascotSleepMinutes', 'Засыпает через, мин', 1, 60)}${numIn('mascotScale', 'Размер', 2, 6)}
   </div>
@@ -510,7 +513,21 @@ async function sendApk(f) {
 async function showLog() { const p = $('#log'); p.style.display = 'block'; try { p.textContent = await api('/api/log'); p.scrollTop = p.scrollHeight; } catch (e) { p.textContent = e.message; } }
 
 window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
-if (PIN) load(); else showPin();
+// Перевод страницы: словарь приходит с ТВ (язык интерфейса лаунчера), тексты меняются на лету.
+let I18 = {};
+function T(s) { return I18[s] ?? s; }
+function tx(root) {
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n;
+  while ((n = w.nextNode())) { const k = n.nodeValue.trim(); if (k && I18[k]) n.nodeValue = n.nodeValue.replace(k, I18[k]); }
+  if (root.querySelectorAll) root.querySelectorAll('[placeholder],[title]').forEach(e => {
+    for (const a of ['placeholder', 'title']) { const v = e.getAttribute(a); if (v && I18[v]) e.setAttribute(a, I18[v]); }
+  });
+}
+new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+  if (n.nodeType === 1) tx(n); else if (n.nodeType === 3) { const k = n.nodeValue.trim(); if (I18[k]) n.nodeValue = I18[k]; }
+}))).observe(document.body, { childList: true, subtree: true });
+fetch('/i18n.json').then(r => r.json()).then(j => { I18 = j.dict || {}; document.documentElement.lang = j.lang; tx(document.body); }).catch(() => {}).finally(() => { if (PIN) load(); else showPin(); });
 </script>
 </body>
 </html>

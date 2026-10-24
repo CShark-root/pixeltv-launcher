@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import android.provider.Settings
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -61,64 +62,64 @@ class Section(
 class SummaryCtx(val cfg: LauncherConfig, val appsCount: Int, val backlight: Int)
 
 val SECTIONS = listOf(
-    Section("mascot", "Маскот", listOf(
+    Section("mascot", tr("Маскот"), listOf(
         ".#.....#.", ".##...##.", ".#######.", "##+###+##", "#########", "##.#.#.##", ".#######.", "..#...#..", ".........",
-    )) { mascotById(it.cfg.mascot).name + if (it.cfg.mascotEnabled) "" else " (скрыт)" },
-    Section("phone", "С телефона", listOf(
+    )) { mascotById(it.cfg.mascot).name + if (it.cfg.mascotEnabled) "" else tr(" (скрыт)") },
+    Section("phone", tr("С телефона"), listOf(
         "..#####..", "..#+++#..", "..#+++#..", "..#+++#..", "..#+++#..", "..#+++#..", "..##+##..", "..#####..", ".........",
-    )) { if (it.cfg.webPanel) "${com.pixelden.launcher.web.WebServer.lanAddress() ?: "нет сети"}:${com.pixelden.launcher.web.WebServer.PORT} · PIN ${it.cfg.webPin}" else "выключено" },
-    Section("look", "Внешний вид", listOf(
+    )) { if (it.cfg.webPanel) "${com.pixelden.launcher.web.WebServer.lanAddress() ?: tr("нет сети")}:${com.pixelden.launcher.web.WebServer.PORT} · PIN ${it.cfg.webPin}" else tr("выключено") },
+    Section("look", tr("Внешний вид"), listOf(
         "..#####..", ".#+++++#.", "#+#+++#+#", "#+++++++#", "#+#+++##.", "#+++++#..", ".#+++++#.", "..#####..", ".........",
-    )) { (FONTS.firstOrNull { f -> f.first == it.cfg.font } ?: FONTS.first()).second + (sceneName(it.cfg.wallpaperPath)?.let { s -> " · $s" } ?: if (it.cfg.wallpaperPath != null) " · обои" else "") },
-    Section("effects", "Эффекты наведения", listOf(
+    )) { (FONTS.firstOrNull { f -> f.first == it.cfg.font } ?: FONTS.first()).second + (sceneName(it.cfg.wallpaperPath)?.let { s -> " · $s" } ?: if (it.cfg.wallpaperPath != null) tr(" · обои") else "") },
+    Section("effects", tr("Эффекты наведения"), listOf(
         "....#....", "....#....", "..#.#.#..", "...###...", "#########", "...###...", "..#.#.#..", "....#....", "....#....",
-    )) { s -> s.cfg.focusEffects.mapNotNull { id -> FOCUS_EFFECTS.firstOrNull { it.first == id }?.second?.removePrefix("Только ") }.joinToString(", ").ifEmpty { "нет" } },
-    Section("weather", "Погода", listOf(
+    )) { s -> s.cfg.focusEffects.mapNotNull { id -> FOCUS_EFFECTS.firstOrNull { it.first == id }?.second?.removePrefix(tr("Только ")) }.joinToString(", ").ifEmpty { tr("нет") } },
+    Section("weather", tr("Погода"), listOf(
         "y.y.y....", ".yyy.....", "yyyyy....", ".yyy###..", "y.##+++#.", ".#++++++#", "#+++++++#", ".#######.", ".........",
-    )) { it.cfg.weatherCity?.let { c -> if (it.cfg.yandexWeatherKey.isBlank()) "$c · Open-Meteo" else "$c · Яндекс" } ?: "город не выбран" },
-    Section("tv", "Телевизор", listOf(
+    )) { it.cfg.weatherCity?.let { c -> if (it.cfg.yandexWeatherKey.isBlank()) "$c · Open-Meteo" else tr("{0} · Яндекс", c) } ?: tr("город не выбран") },
+    Section("tv", tr("Телевизор"), listOf(
         "..+...+..", "...+.+...", "#########", "#+++++++#", "#+++++++#", "#+++++++#", "#########", "...#.#...", "..#####..",
-    )) { "подсветка ${it.backlight}%" },
-    Section("cleanup", "Чистка ТВ", listOf(
+    )) { tr("подсветка {0}%", (it.backlight)) },
+    Section("cleanup", tr("Чистка ТВ"), listOf(
         "......##.", ".....##..", "....##...", "...##....", "..###....", ".#+++#...", "#+#+#+#..", "#+#+#+#..", ".........",
-    )) { "отключено ${it.cfg.cleanupDisabled.size} · вернуть одной кнопкой" },
-    Section("calib", "Калибровка экрана", listOf(
+    )) { tr("отключено {0} · вернуть одной кнопкой", (it.cfg.cleanupDisabled.size)) },
+    Section("calib", tr("Калибровка экрана"), listOf(
         "#########", "#+#+#+#+#", "#+#+#+#+#", "#+#+#+#+#", "#+#+#+#+#", "#########", "#++++####", "#########", ".........",
-    )) { "чёрный, контраст, гамма, цвет" },
-    Section("health", "Здоровье ТВ", listOf(
+    )) { tr("чёрный, контраст, гамма, цвет") },
+    Section("health", tr("Здоровье ТВ"), listOf(
         ".##...##.", "#++#.#++#", "#+++#+++#", "#+++++++#", ".#+++++#.", "..#+++#..", "...#+#...", "....#....", ".........",
-    )) { "память, температура, очистка" },
-    Section("widgets", "Виджеты", listOf(
+    )) { tr("память, температура, очистка") },
+    Section("widgets", tr("Виджеты"), listOf(
         "####.####", "#++#.#++#", "####.####", ".........", "####.####", "#++#.#++#", "####.####", ".........", ".........",
-    )) { if (!it.cfg.showWidgets) "выключены" else it.cfg.widgets.mapNotNull { id -> WIDGETS.firstOrNull { w -> w.first == id }?.second?.substringBefore(' ')?.lowercase() }.joinToString(", ") },
-    Section("grid", "Сетка и карточки", listOf(
+    )) { if (!it.cfg.showWidgets) tr("выключены") else it.cfg.widgets.mapNotNull { id -> WIDGETS.firstOrNull { w -> w.first == id }?.second?.substringBefore(' ')?.lowercase() }.joinToString(", ") },
+    Section("grid", tr("Сетка и карточки"), listOf(
         "###.###..", "#+#.#+#..", "###.###..", ".........", "###.###..", "#+#.#+#..", "###.###..", ".........", ".........",
-    )) { "${it.cfg.columns} колонок · ${it.cfg.cardSize}%" },
-    Section("clock", "Часы и шапка", listOf(
+    )) { tr("{0} колонок · {1}%", (it.cfg.columns), (it.cfg.cardSize)) },
+    Section("clock", tr("Часы и шапка"), listOf(
         "..#####..", ".#+++++#.", "#+++#+++#", "#+++#+++#", "#+++###+#", "#+++++++#", ".#+++++#.", "..#####..", ".........",
-    )) { (if (it.cfg.clock24h) "24 ч" else "12 ч") + if (it.cfg.showSeconds) " · секунды" else "" },
-    Section("rows", "Ряды главного экрана", listOf(
+    )) { (if (it.cfg.clock24h) tr("24 ч") else tr("12 ч")) + if (it.cfg.showSeconds) tr(" · секунды") else "" },
+    Section("rows", tr("Ряды главного экрана"), listOf(
         "#########", ".........", "#####....", ".........", "#######..", ".........", "###......", ".........", ".........",
     )) { listOfNotNull(
-        "избранное".takeIf { _ -> it.cfg.showFavorites }, "входы".takeIf { _ -> it.cfg.showInputs },
-        "категории".takeIf { _ -> it.cfg.showCategories }, "все".takeIf { _ -> it.cfg.showAllApps },
+        tr("избранное").takeIf { _ -> it.cfg.showFavorites }, tr("входы").takeIf { _ -> it.cfg.showInputs },
+        tr("категории").takeIf { _ -> it.cfg.showCategories }, tr("все").takeIf { _ -> it.cfg.showAllApps },
     ).joinToString(", ") },
-    Section("cats", "Категории", listOf(
+    Section("cats", tr("Категории"), listOf(
         "###......", "#++####..", "#+++++##.", "#++++++#.", "#++++++#.", "#++++++#.", "########.", ".........", ".........",
     )) { "${it.cfg.categories.size}" },
-    Section("hidden", "Скрытые приложения", listOf(
+    Section("hidden", tr("Скрытые приложения"), listOf(
         "........#", "...###.#.", ".##+++#..", "#++###.+#", "#++##.++#", "#++#.#++#", ".##.++##.", ".#.###...", "#........",
-    )) { "скрыто ${it.cfg.hidden.size} · всего ${it.appsCount}" },
-    Section("perm", "Права и службы", listOf(
+    )) { tr("скрыто {0} · всего {1}", (it.cfg.hidden.size), (it.appsCount)) },
+    Section("perm", tr("Права и службы"), listOf(
         "..###....", ".#+++#...", ".#+.+#...", ".#+++#...", "..###....", "...#.....", "...###...", "...#.....", "...##....",
-    )) { if (DenAccessibilityService.instance != null) "служба кнопок работает" else "служба кнопок выключена" },
-    Section("debug", "Отладка", listOf(
+    )) { if (DenAccessibilityService.instance != null) tr("служба кнопок работает") else tr("служба кнопок выключена") },
+    Section("debug", tr("Отладка"), listOf(
         "#..#.#..#", ".#.###.#.", "..#+++#..", "##+#+#+##", "..#+++#..", "##+#+#+##", "..#+++#..", ".#.###.#.", "#.......#",
     )) { if (DebugLog.logKeys) "журнал · кнопки пишутся" else "журнал" },
-    Section("backup", "Резервная копия", listOf(
+    Section("backup", tr("Резервная копия"), listOf(
         "#######..", "#+###+##.", "#+###+#+#", "#+++++++#", "#+#####+#", "#+#+++#+#", "#+#+++#+#", "#########", ".........",
     )) { "pixelden-backup.json" },
-    Section("about", "О программе", listOf(
+    Section("about", tr("О программе"), listOf(
         "..#####..", ".#+++++#.", "#+++#+++#", "#+++++++#", "#+++#+++#", "#+++#+++#", ".#++#++#.", "..#####..", ".........",
     )) { "PixelTv ${BuildConfig.VERSION_NAME}" },
 )
@@ -162,8 +163,8 @@ fun SettingsHub(cfg: LauncherConfig, onOpen: (String) -> Unit) {
             Modifier.widthIn(max = 1720.dp).fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 56.dp, vertical = 36.dp),
         ) {
-            item { PText("Настройки", 44.sp, t.colors.text) }
-            item { PText("Выберите раздел · BACK — на главный экран", 15.sp, t.colors.dim, Modifier.padding(bottom = 22.dp)) }
+            item { PText(tr("Настройки"), 44.sp, t.colors.text) }
+            item { PText(tr("Выберите раздел · BACK — на главный экран"), 15.sp, t.colors.dim, Modifier.padding(bottom = 22.dp)) }
             // Три колонки по реальной ширине экрана — плитки никогда не уезжают за край.
             item {
                 BoxWithConstraints(Modifier.fillMaxWidth()) {

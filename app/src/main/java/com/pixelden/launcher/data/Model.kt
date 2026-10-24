@@ -6,6 +6,9 @@ import kotlinx.serialization.Serializable
 /** Всё состояние лаунчера. Хранится одним JSON-файлом, он же — резервная копия. */
 @Serializable
 data class LauncherConfig(
+    /** Язык интерфейса: auto (как в системе), ru, en. */
+    val language: String = "auto",
+
     // Маскот
     val mascot: String = "pinch",
     val mascotEnabled: Boolean = true,
@@ -62,6 +65,9 @@ data class LauncherConfig(
     val talkFacts: Boolean = true,
     val talkHolidays: Boolean = true,
     val talkNews: Boolean = true,
+    /** Источник новостей: auto (по языку), id из NewsSources или custom. */
+    val newsSource: String = "auto",
+    val newsCustomUrl: String = "",
 
     // Ряды
     val showFavorites: Boolean = true,

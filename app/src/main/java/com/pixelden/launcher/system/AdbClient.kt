@@ -1,5 +1,6 @@
 package com.pixelden.launcher.system
 
+import com.pixelden.launcher.i18n.tr
 import android.content.Context
 import android.util.Base64
 import java.io.DataInputStream
@@ -36,7 +37,7 @@ class AdbClient(private val context: Context) {
             try {
                 return attempt(command, timeoutMs)
             } catch (e: NotAuthorizedYet) {
-                if (System.currentTimeMillis() > deadline) error("на ТВ не разрешили отладку")
+                if (System.currentTimeMillis() > deadline) error(tr("на ТВ не разрешили отладку"))
             }
         }
     }
@@ -87,7 +88,7 @@ class AdbClient(private val context: Context) {
                     Thread.sleep(3000)
                     throw NotAuthorizedYet()
                 }
-                else -> error("неожиданный ответ adb: ${Integer.toHexString(m.cmd)}")
+                else -> error(tr("неожиданный ответ adb: {0}", (Integer.toHexString(m.cmd))))
             }
         }
     }
@@ -104,7 +105,7 @@ class AdbClient(private val context: Context) {
         val head = ByteArray(24).also { input.readFully(it) }
         val b = ByteBuffer.wrap(head).order(ByteOrder.LITTLE_ENDIAN)
         val cmd = b.int; val a0 = b.int; val a1 = b.int; val len = b.int
-        if (len !in 0..MAX_DATA * 4) error("adb: странная длина $len")
+        if (len !in 0..MAX_DATA * 4) error(tr("adb: странная длина {0}", len))
         val data = ByteArray(len).also { input.readFully(it) }
         return Msg(cmd, a0, a1, data)
     }

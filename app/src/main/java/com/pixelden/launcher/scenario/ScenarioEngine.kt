@@ -1,5 +1,6 @@
 package com.pixelden.launcher.scenario
 
+import com.pixelden.launcher.i18n.tr
 import android.accessibilityservice.AccessibilityService
 import android.content.Context
 import android.content.Intent
@@ -50,12 +51,12 @@ class ScenarioEngine(
             val t = s.trigger as Trigger.Boot
             scope.launch {
                 delay(t.delaySec * 1000L)
-                run(s, "загрузка")
+                run(s, tr("загрузка"))
             }
         }
     }
 
-    fun run(s: Scenario, source: String = "вручную") {
+    fun run(s: Scenario, source: String = tr("вручную")) {
         // Запускают и из главного потока, и из веб-панели — таблицу работающих трогаем только в главном.
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {
             scope.launch(kotlinx.coroutines.Dispatchers.Main) { run(s, source) }
@@ -70,13 +71,13 @@ class ScenarioEngine(
                     execute(a)
                 }
                 DebugLog.i("✓ ${s.name}")
-                _events.value = "Готово: ${s.name}"
+                _events.value = tr("Готово: {0}", (s.name))
             } catch (e: kotlinx.coroutines.CancellationException) {
                 DebugLog.i("✗ ${s.name}: перезапущен")
                 throw e
             } catch (e: Exception) {
                 DebugLog.e("✗ ${s.name}", e)
-                _events.value = "Не вышло: ${s.name} (${e.message ?: e.javaClass.simpleName})"
+                _events.value = tr("Не вышло: {0} ({1})", (s.name), (e.message ?: e.javaClass.simpleName))
             }
         }
         running[s.id] = job
@@ -107,7 +108,7 @@ class ScenarioEngine(
         val apps = PixelDenApp.instance.apps
         when (a) {
             is Action.LaunchApp -> {
-                val i = apps.launchIntent(a.pkg) ?: error("приложение ${a.pkg} не найдено")
+                val i = apps.launchIntent(a.pkg) ?: error(tr("приложение {0} не найдено", (a.pkg)))
                 start(i)
             }
             is Action.OpenInput -> start(apps.inputIntent(a.inputId))
@@ -130,7 +131,7 @@ class ScenarioEngine(
                 val v = a.percent.coerceIn(0, 100)
                 val ok = runCatching { Settings.Global.putInt(context.contentResolver, "picture_backlight", v) }.getOrDefault(false)
                 if (!ok) {
-                    if (!Settings.System.canWrite(context)) error("нет прав на запись настроек")
+                    if (!Settings.System.canWrite(context)) error(tr("нет прав на запись настроек"))
                     Settings.System.putInt(context.contentResolver, Settings.System.SCREEN_BRIGHTNESS, v * 255 / 100)
                 }
                 DebugLog.i("    подсветка → $v")
@@ -154,7 +155,7 @@ class ScenarioEngine(
             DenAccessibilityService.instance?.let { return it }
             delay(250); waited += 250
         }
-        error("служба специальных возможностей PixelTv выключена")
+        error(tr("служба специальных возможностей PixelTv выключена"))
     }
 
     private suspend fun clickText(text: String, timeoutSec: Int) {
@@ -171,7 +172,7 @@ class ScenarioEngine(
             }
             delay(300)
         }
-        error("не нашёл «$text» на экране")
+        error(tr("не нашёл «{0}» на экране", text))
     }
 
     /** Сначала точное совпадение текста, потом — подстрока. */
@@ -188,7 +189,7 @@ class ScenarioEngine(
             "secure" -> Settings.Secure.putString(cr, a.key, a.value)
             else -> Settings.Global.putString(cr, a.key, a.value)
         }
-        if (!ok) error("настройка ${a.namespace}/${a.key} не записалась")
+        if (!ok) error(tr("настройка {0}/{1} не записалась", (a.namespace), (a.key)))
     }
 
     companion object {

@@ -1,5 +1,6 @@
 package com.pixelden.launcher.system
 
+import com.pixelden.launcher.i18n.tr
 import android.widget.Toast
 import com.pixelden.launcher.PixelDenApp
 import com.pixelden.launcher.scenario.DebugLog
@@ -34,8 +35,8 @@ object SleepTimer {
             val warn = end - 60_000L - System.currentTimeMillis()
             if (warn > 0) {
                 delay(warn)
-                app.engine.notify("Через минуту засыпаю… Таймер сна.")
-                Toast.makeText(app, "PixelTv: ТВ уснёт через минуту", Toast.LENGTH_LONG).show()
+                app.engine.notify(tr("Через минуту засыпаю… Таймер сна."))
+                Toast.makeText(app, tr("PixelTv: ТВ уснёт через минуту"), Toast.LENGTH_LONG).show()
             }
             delay((end - System.currentTimeMillis()).coerceAtLeast(0))
             _endsAt.value = null

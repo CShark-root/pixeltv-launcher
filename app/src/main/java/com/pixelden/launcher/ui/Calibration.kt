@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaPlayer
@@ -77,52 +78,52 @@ private class CalStep(
 
 private val STEPS = listOf(
     CalStep(
-        "picture_mode", "Режим изображения",
-        "Для естественной картинки выберите «Кино». «Яркий» красивее в магазине, но искажает цвета. " +
-            "Режим выбирается первым: остальные шаги настраивают именно его.",
-        0..4, names = linkedMapOf(1 to "Кино", 0 to "Пользовательский", 2 to "Спорт", 3 to "Яркий", 4 to "Очень яркий"),
+        "picture_mode", tr("Режим изображения"),
+        tr("Для естественной картинки выберите «Кино». «Яркий» красивее в магазине, но искажает цвета. ") +
+            tr("Режим выбирается первым: остальные шаги настраивают именно его."),
+        0..4, names = linkedMapOf(1 to tr("Кино"), 0 to tr("Пользовательский"), 2 to tr("Спорт"), 3 to tr("Яркий"), 4 to tr("Очень яркий")),
     ) { overview() },
     CalStep(
-        "picture_backlight", "Подсветка",
-        "Сколько света даёт экран. Белое поле должно быть ярким, но не слепить в вашей комнате. " +
-            "Вечером обычно хватает 40–60.",
+        "picture_backlight", tr("Подсветка"),
+        tr("Сколько света даёт экран. Белое поле должно быть ярким, но не слепить в вашей комнате. ") +
+            tr("Вечером обычно хватает 40–60."),
         0..100, 5,
     ) { backlight() },
     CalStep(
-        "picture_brightness", "Уровень чёрного",
-        "Уменьшайте, пока ЛЕВЫЙ знак не исчезнет совсем, а СРЕДНИЙ ещё едва виден. " +
-            "Если средний пропал — тени будут «проваливаться», сделайте шаг назад.",
-        0..100, labels = { Labels(listOf("не виден", "едва виден", "виден"), grey(90)) },
+        "picture_brightness", tr("Уровень чёрного"),
+        tr("Уменьшайте, пока ЛЕВЫЙ знак не исчезнет совсем, а СРЕДНИЙ ещё едва виден. ") +
+            tr("Если средний пропал — тени будут «проваливаться», сделайте шаг назад."),
+        0..100, labels = { Labels(listOf(tr("не виден"), tr("едва виден"), tr("виден")), grey(90)) },
     ) { blackLevel() },
     CalStep(
-        "picture_contrast", "Контраст",
-        "Повышайте, пока ПРАВЫЙ знак на белом не начнёт пропадать, затем шаг назад. " +
-            "Все три знака должны оставаться различимыми.",
-        0..100, labels = { Labels(listOf("виден", "виден", "едва виден"), grey(140)) },
+        "picture_contrast", tr("Контраст"),
+        tr("Повышайте, пока ПРАВЫЙ знак на белом не начнёт пропадать, затем шаг назад. ") +
+            tr("Все три знака должны оставаться различимыми."),
+        0..100, labels = { Labels(listOf(tr("виден"), tr("виден"), tr("едва виден")), grey(140)) },
     ) { whiteLevel() },
     CalStep(
-        "picture_gamma", "Гамма",
-        "Отойдите или прищурьтесь: СРЕДНИЙ квадрат должен слиться с полосатым фоном. " +
-            "Если сливается левый — выберите светлее, если правый — темнее.",
-        1..3, names = linkedMapOf(1 to "Тёмная", 2 to "Стандартная", 3 to "Светлая"),
-        labels = { Labels(listOf("темнее", "норма", "светлее"), Color.White, top = 240, boxed = true) },
+        "picture_gamma", tr("Гамма"),
+        tr("Отойдите или прищурьтесь: СРЕДНИЙ квадрат должен слиться с полосатым фоном. ") +
+            tr("Если сливается левый — выберите светлее, если правый — темнее."),
+        1..3, names = linkedMapOf(1 to tr("Тёмная"), 2 to tr("Стандартная"), 3 to tr("Светлая")),
+        labels = { Labels(listOf(tr("темнее"), tr("норма"), tr("светлее")), Color.White, top = 240, boxed = true) },
     ) { gamma() },
     CalStep(
-        "picture_color_temperature", "Цветовая температура",
-        "Белый и серые полосы должны быть нейтральными, как лист бумаги, — без синевы и без желтизны. " +
-            "Для фильмов правильнее «Тёплая».",
-        1..3, names = linkedMapOf(1 to "Холодная", 2 to "Стандартная", 3 to "Тёплая"),
+        "picture_color_temperature", tr("Цветовая температура"),
+        tr("Белый и серые полосы должны быть нейтральными, как лист бумаги, — без синевы и без желтизны. ") +
+            tr("Для фильмов правильнее «Тёплая»."),
+        1..3, names = linkedMapOf(1 to tr("Холодная"), 2 to tr("Стандартная"), 3 to tr("Тёплая")),
     ) { temperature() },
     CalStep(
-        "picture_saturation", "Насыщенность",
-        "Цвета сочные, но лица естественные, не красные. В цветных градиентах должны оставаться " +
-            "все оттенки — если яркий конец сливается в одно пятно, уменьшите.",
+        "picture_saturation", tr("Насыщенность"),
+        tr("Цвета сочные, но лица естественные, не красные. В цветных градиентах должны оставаться ") +
+            tr("все оттенки — если яркий конец сливается в одно пятно, уменьшите."),
         0..100,
     ) { colors() },
     CalStep(
-        "picture_sharpness", "Чёткость",
-        "Уменьшайте, пока вокруг тонких линий и букв не пропадут светлые ореолы. " +
-            "Слишком мало — линии станут мыльными.",
+        "picture_sharpness", tr("Чёткость"),
+        tr("Уменьшайте, пока вокруг тонких линий и букв не пропадут светлые ореолы. ") +
+            tr("Слишком мало — линии станут мыльными."),
         0..100,
     ) { sharpness() },
 )
@@ -169,7 +170,7 @@ fun CalibrationScreen(onExit: () -> Unit) {
         for (s in listOf(STEPS[0]) + STEPS.drop(1)) {
             val f = videoFile(context, s)
             if (!f.exists()) {
-                preparing = "Готовлю шаблоны для видеопроцессора: ${STEPS.indexOf(s) + 1}/${STEPS.size}"
+                preparing = tr("Готовлю шаблоны для видеопроцессора: {0}/{1}", (STEPS.indexOf(s) + 1), (STEPS.size))
                 val ok = withContext(Dispatchers.Default) {
                     runCatching {
                         f.parentFile?.mkdirs()
@@ -228,16 +229,16 @@ fun CalibrationScreen(onExit: () -> Unit) {
     ) {
         if (done) {
             Column(Modifier.align(Alignment.Center).width(900.dp).pixelBox(t.colors.accent, t.colors.bg, t.border).padding(32.dp)) {
-                PText("Готово!", 40.sp, t.colors.text)
+                PText(tr("Готово!"), 40.sp, t.colors.text)
                 STEPS.forEach { s ->
                     val v = read(context, s.key)
                     val was = original[s.key]
                     PText(
-                        "${s.title}: ${label(s, v)}" + if (was != v) "   (было ${label(s, was)})" else "",
+                        "${s.title}: ${label(s, v)}" + if (was != v) tr("   (было {0})", (label(s, was))) else "",
                         18.sp, if (was != v) t.colors.accent else t.colors.dim, Modifier.padding(top = 6.dp),
                     )
                 }
-                PText("OK — оставить так · BACK — вернуть как было", 18.sp, t.colors.text, Modifier.padding(top = 20.dp))
+                PText(tr("OK — оставить так · BACK — вернуть как было"), 18.sp, t.colors.text, Modifier.padding(top = 20.dp))
             }
             return@Box
         }
@@ -261,8 +262,8 @@ fun CalibrationScreen(onExit: () -> Unit) {
                 }
                 PText(step.hint, 16.sp, t.colors.dim, Modifier.padding(top = 8.dp), maxLines = 4)
                 PText(
-                    preparing ?: if (video == null) "Шаблон в интерфейсе — настройки кроме подсветки на нём не видны"
-                    else "< > менять · OK — дальше · BACK — назад · вверх/вниз — спрятать подсказку",
+                    preparing ?: if (video == null) tr("Шаблон в интерфейсе — настройки кроме подсветки на нём не видны")
+                    else tr("< > менять · OK — дальше · BACK — назад · вверх/вниз — спрятать подсказку"),
                     14.sp, if (preparing != null || video == null) t.colors.accent else t.colors.dim.copy(alpha = 0.7f),
                     Modifier.padding(top = 10.dp),
                 )
@@ -303,7 +304,7 @@ private fun VideoPattern(file: File) {
 }
 
 private fun label(s: CalStep, v: Int?): String = when {
-    v == null -> "нет доступа"
+    v == null -> tr("нет доступа")
     s.names != null -> s.names[v] ?: v.toString()
     else -> v.toString()
 }
@@ -421,8 +422,8 @@ private fun DrawScope.sharpness() {
     val paint = android.graphics.Paint().apply { textSize = 22f; isAntiAlias = true }
     drawContext.canvas.nativeCanvas.apply {
         paint.color = android.graphics.Color.WHITE
-        drawText("Мелкий текст: съешь же ещё этих мягких французских булок", 160f, 640f, paint)
+        drawText(tr("Мелкий текст: съешь же ещё этих мягких французских булок"), 160f, 640f, paint)
         paint.color = android.graphics.Color.BLACK
-        drawText("Мелкий текст: съешь же ещё этих мягких французских булок", 160f, 680f, paint)
+        drawText(tr("Мелкий текст: съешь же ещё этих мягких французских булок"), 160f, 680f, paint)
     }
 }

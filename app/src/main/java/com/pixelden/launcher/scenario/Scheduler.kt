@@ -1,5 +1,6 @@
 package com.pixelden.launcher.scenario
 
+import com.pixelden.launcher.i18n.tr
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -60,7 +61,7 @@ object Scheduler {
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val app = PixelDenApp.instance
-        intent.getStringExtra("id")?.let { id -> app.engine.scenario(id)?.let { app.engine.run(it, "по времени") } }
+        intent.getStringExtra("id")?.let { id -> app.engine.scenario(id)?.let { app.engine.run(it, tr("по времени")) } }
         Scheduler.scheduleAll(context, app.store.current)
     }
 }

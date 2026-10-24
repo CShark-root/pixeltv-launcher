@@ -125,6 +125,18 @@ class DebugReceiver : BroadcastReceiver() {
                 val list = com.pixelden.launcher.system.TvCleanup.scan(context)
                 DebugLog.i("чистка видит ${list.size}: " + list.joinToString { (if (it.enabled) "+" else "-") + it.item.pkg })
             }
+            "com.pixelden.launcher.BACKUP" -> {
+                val r = app.store.exportBackup()
+                DebugLog.i("BACKUP: " + r.fold({ it.absolutePath }, { "ошибка ${it.message}" }))
+                resultData = r.isSuccess.toString()
+            }
+            "com.pixelden.launcher.RESTORE" -> {
+                val r = app.store.importBackup()
+                DebugLog.i("RESTORE: " + r.fold({ "ok" }, { "ошибка ${it.message}" }))
+                resultData = r.isSuccess.toString()
+                // Язык, сценарии и службы подхватятся с нуля.
+                if (r.isSuccess) app.scope.launch { kotlinx.coroutines.delay(500); android.os.Process.killProcess(android.os.Process.myPid()) }
+            }
             "com.pixelden.launcher.KEYLOG" -> {
                 DebugLog.logKeys = intent.getBooleanExtra("on", true)
                 DebugLog.i("журнал кнопок: ${if (DebugLog.logKeys) "вкл" else "выкл"}")

@@ -1,5 +1,6 @@
 package com.pixelden.launcher.weather
 
+import com.pixelden.launcher.i18n.I18n
 import com.pixelden.launcher.scenario.DebugLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,9 +19,12 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/** Праздники и памятные даты по календарю — работает без интернета. Ключ — "ММ-ДД". */
+/**
+ * Праздники и памятные даты по календарю — работает без интернета. Ключ — "ММ-ДД".
+ * Набор свой для каждого языка: российские даты англоязычному зрителю ни к чему.
+ */
 object Holidays {
-    private val fixed = mapOf(
+    private val RU = mapOf(
         "01-01" to "Новый год", "01-07" to "Рождество", "01-25" to "Татьянин день",
         "02-14" to "День святого Валентина", "02-23" to "День защитника Отечества",
         "03-01" to "День кошек в России", "03-08" to "Международный женский день",
@@ -30,12 +34,20 @@ object Holidays {
         "08-08" to "Всемирный день кошек", "09-01" to "День знаний", "10-05" to "День учителя",
         "10-31" to "Хэллоуин", "11-04" to "День народного единства", "12-31" to "Канун Нового года",
     )
+    private val EN = mapOf(
+        "01-01" to "New Year's Day", "02-14" to "Valentine's Day", "03-17" to "St. Patrick's Day",
+        "04-01" to "April Fools' Day", "04-12" to "Yuri's Night", "04-22" to "Earth Day",
+        "05-04" to "Star Wars Day", "08-08" to "International Cat Day", "10-31" to "Halloween",
+        "12-24" to "Christmas Eve", "12-25" to "Christmas", "12-31" to "New Year's Eve",
+    )
+
+    private fun en() = I18n.lang != "ru"
 
     /** Название праздника сегодня или null. День программиста — 256-й день года. */
     fun today(c: Calendar = Calendar.getInstance()): String? {
-        if (c.get(Calendar.DAY_OF_YEAR) == 256) return "День программиста"
+        if (c.get(Calendar.DAY_OF_YEAR) == 256) return if (en()) "Programmer's Day" else "День программиста"
         val key = "%02d-%02d".format(c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
-        return fixed[key]
+        return (if (en()) EN else RU)[key]
     }
 
     /** Ближайший праздник после сегодняшнего дня: название и через сколько дней. */
@@ -48,7 +60,18 @@ object Holidays {
         return null
     }
 
-    fun line(name: String): String = when (name) {
+    fun line(name: String): String = if (en()) when (name) {
+        "New Year's Day" -> "Happy New Year! Made a wish?"
+        "New Year's Eve" -> "It's New Year's Eve! Snacks ready?"
+        "Halloween" -> "Boo! Happy Halloween!"
+        "April Fools' Day" -> "Happy April Fools'! Your shoelace is untied. Kidding."
+        "Yuri's Night" -> "Let's go! Happy Yuri's Night — first human in space!"
+        "Star Wars Day" -> "May the Fourth be with you!"
+        "International Cat Day" -> "It's International Cat Day! Pet a cat. Me counts."
+        "Programmer's Day" -> "Happy Programmer's Day! I'm 256 pixels of love."
+        "Christmas" -> "Merry Christmas! Cozy movie time."
+        else -> "Today is $name!"
+    } else when (name) {
         "Новый год" -> "С Новым годом! Загадал желание?"
         "Канун Нового года" -> "Сегодня Новый год! Оливье готов?"
         "Хэллоуин" -> "Бу! С Хэллоуином!"
@@ -60,9 +83,11 @@ object Holidays {
     }
 }
 
-/** Короткие факты для болтовни. */
+/** Короткие факты для болтовни — свой набор для каждого языка. */
 object Facts {
-    val all = listOf(
+    val all get() = if (I18n.lang == "ru") RU else EN
+
+    private val RU = listOf(
         "Кошки спят 12–16 часов в сутки. Я в деле.",
         "У кошки 32 мышцы в каждом ухе.",
         "Кошачье мурлыканье — около 25 герц. Это успокаивает.",
@@ -104,6 +129,41 @@ object Facts {
         "Чебурашку в Японии обожают больше, чем у нас.",
         "Кот Матроскин говорит голосом Олега Табакова.",
     )
+
+    private val EN = listOf(
+        "Cats sleep 12–16 hours a day. I'm on it.",
+        "A cat has 32 muscles in each ear.",
+        "A cat's purr is about 25 hertz. It's soothing.",
+        "Foxes can hear a mouse squeak 40 meters away.",
+        "A fox wraps its tail around its nose to keep warm, like a scarf.",
+        "Cats can't taste sweetness.",
+        "Whiskers tell a cat whether it fits through a gap.",
+        "The first TV remote, in 1950, had a cable.",
+        "A 4K TV has more than 8 million pixels.",
+        "“Pixel” is short for “picture element”.",
+        "The first films were shorter than a minute.",
+        "Pac-Man was meant to be a game about eating.",
+        "Tetris was invented in Moscow in 1984.",
+        "Mario was first called Jumpman.",
+        "Footprints on the Moon will last millions of years.",
+        "Sunlight takes about 8 minutes to reach Earth.",
+        "A day on Venus is longer than its year.",
+        "An octopus has three hearts.",
+        "Honey can stay edible for thousands of years.",
+        "Bananas are berries; strawberries aren't.",
+        "Snails can sleep for up to three years.",
+        "The shortest war in history lasted 38 minutes.",
+        "An ostrich's eye is bigger than its brain.",
+        "Japan has islands with more cats than people.",
+        "A cat can jump five times its own height.",
+        "Some foxes can climb trees.",
+        "The first smiley :-) was typed in 1982.",
+        "Wi-Fi doesn't stand for anything; it's just a name.",
+        "The first computer mouse was made of wood.",
+        "Popcorn pops at about 180 °C.",
+        "Halloween pumpkins used to be turnips.",
+        "A group of cats is called a clowder.",
+    )
 }
 
 /** Свежие заголовки из RSS Ленты.ру (бесплатно, без ключа). Обновляются раз в час. */
@@ -125,7 +185,8 @@ class NewsRepository(private val scope: CoroutineScope) {
     fun stop() { loop?.cancel(); loop = null; _titles.value = emptyList() }
 
     suspend fun refresh(): Boolean {
-        val r = withContext(Dispatchers.IO) { runCatching { fetch("https://lenta.ru/rss/news") } }
+        val url = NewsSources.url(com.pixelden.launcher.PixelDenApp.instance.store.current)
+        val r = withContext(Dispatchers.IO) { runCatching { fetch(url) } }
         r.onSuccess { list ->
             _titles.value = list
             DebugLog.i("новости: ${list.size} заголовков")
@@ -140,8 +201,8 @@ class NewsRepository(private val scope: CoroutineScope) {
         c.setRequestProperty("User-Agent", "PixelTv/1.0")
         try {
             val xml = c.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-            // Простой разбор RSS: заголовки внутри <item>, с CDATA или без.
-            return Regex("<item>[\\s\\S]*?<title>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:]]>)?</title>")
+            // Простой разбор RSS и Atom: заголовки внутри <item> или <entry>, с CDATA или без.
+            return Regex("<(?:item|entry)[\\s>][\\s\\S]*?<title[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:]]>)?</title>")
                 .findAll(xml)
                 .map { it.groupValues[1].trim().replace("&quot;", "\"").replace("&amp;", "&").replace("&#039;", "'") }
                 .filter { it.isNotBlank() }
@@ -191,5 +252,28 @@ class RatesRepository(private val scope: CoroutineScope) {
         r.onSuccess { _rates.value = it; DebugLog.i("курсы: " + it.joinToString { "${it.code} ${"%.2f".format(it.value)}" }) }
             .onFailure { DebugLog.e("курсы не загрузились", it) }
         return r.isSuccess
+    }
+}
+
+/** Откуда маскот берёт новости: готовые RSS-ленты или свой адрес. */
+object NewsSources {
+    data class Source(val id: String, val name: String, val url: String, val lang: String)
+
+    val ALL = listOf(
+        Source("lenta", "Лента.ру", "https://lenta.ru/rss/news", "ru"),
+        Source("ria", "РИА Новости", "https://ria.ru/export/rss2/archive/index.xml", "ru"),
+        Source("tass", "ТАСС", "https://tass.ru/rss/v2.xml", "ru"),
+        Source("bbc_ru", "BBC News Русская служба", "https://feeds.bbci.co.uk/russian/rss.xml", "ru"),
+        Source("habr", "Хабр", "https://habr.com/ru/rss/articles/", "ru"),
+        Source("bbc", "BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml", "en"),
+        Source("guardian", "The Guardian", "https://www.theguardian.com/world/rss", "en"),
+        Source("verge", "The Verge", "https://www.theverge.com/rss/index.xml", "en"),
+    )
+
+    /** auto — по языку интерфейса; custom — свой адрес из настроек. */
+    fun url(cfg: com.pixelden.launcher.data.LauncherConfig): String = when (cfg.newsSource) {
+        "custom" -> cfg.newsCustomUrl.ifBlank { ALL.first().url }
+        "auto" -> if (I18n.lang == "ru") ALL.first { it.id == "lenta" }.url else ALL.first { it.id == "bbc" }.url
+        else -> ALL.firstOrNull { it.id == cfg.newsSource }?.url ?: ALL.first().url
     }
 }

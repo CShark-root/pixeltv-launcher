@@ -1,5 +1,6 @@
 package com.pixelden.launcher.web
 
+import com.pixelden.launcher.i18n.tr
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -95,7 +96,7 @@ class WebServer(private val app: PixelDenApp) {
     ) {
         var ip: String = ""
         fun text(limit: Int = 2_000_000): String {
-            if (length > limit) error("слишком большой запрос")
+            if (length > limit) error(tr("слишком большой запрос"))
             val buf = ByteArray(length.toInt())
             var read = 0
             while (read < buf.size) { val n = body.read(buf, read, buf.size - read); if (n < 0) break; read += n }
@@ -104,7 +105,7 @@ class WebServer(private val app: PixelDenApp) {
 
         /** Тело запроса прямо в файл — APK и фото не держим в памяти целиком. */
         fun saveTo(file: File, limit: Long) {
-            if (length <= 0 || length > limit) error("файл пустой или слишком большой")
+            if (length <= 0 || length > limit) error(tr("файл пустой или слишком большой"))
             file.outputStream().use { out ->
                 val buf = ByteArray(64 * 1024)
                 var left = length
@@ -113,7 +114,7 @@ class WebServer(private val app: PixelDenApp) {
                     if (n < 0) break
                     out.write(buf, 0, n); left -= n
                 }
-                if (left > 0) error("передача оборвалась")
+                if (left > 0) error(tr("передача оборвалась"))
             }
         }
     }
@@ -161,6 +162,10 @@ class WebServer(private val app: PixelDenApp) {
         if (!req.path.startsWith("/api/")) {
             when (req.path) {
                 "/", "/index.html" -> send(out, 200, "text/html; charset=utf-8", app.assets.open("web/index.html").use { it.readBytes() })
+                "/i18n.json" -> json(out, 200, buildJsonObject {
+                    put("lang", com.pixelden.launcher.i18n.I18n.lang)
+                    put("dict", JsonObject(com.pixelden.launcher.i18n.I18n.dictionary().mapValues { JsonPrimitive(it.value) }))
+                })
                 "/font.ttf" -> send(out, 200, "font/ttf", app.resources.openRawResource(R.font.tiny5).use { it.readBytes() }, cache = true)
                 else -> send(out, 404, "text/plain", "not found".toByteArray())
             }
@@ -170,7 +175,7 @@ class WebServer(private val app: PixelDenApp) {
         val now = System.currentTimeMillis()
         val lock = fails[req.ip]
         if (lock != null && lock.second > now) {
-            json(out, 429, buildJsonObject { put("error", "Слишком много неверных PIN. Подождите 5 минут.") })
+            json(out, 429, buildJsonObject { put("error", tr("Слишком много неверных PIN. Подождите 5 минут.")) })
             return
         }
         val pin = req.headers["x-pin"] ?: req.query["pin"]
@@ -178,7 +183,7 @@ class WebServer(private val app: PixelDenApp) {
             val n = (lock?.first ?: 0) + 1
             fails[req.ip] = if (n >= 10) 0 to now + 5 * 60_000L else n to 0L
             if (n >= 10) DebugLog.e("веб-панель: подбор PIN с ${req.ip}, вход закрыт на 5 минут")
-            json(out, 401, buildJsonObject { put("error", "Неверный PIN. Он показан на ТВ: Настройки → С телефона") })
+            json(out, 401, buildJsonObject { put("error", tr("Неверный PIN. Он показан на ТВ: Настройки → С телефона")) })
             return
         }
         fails.remove(req.ip)
@@ -198,7 +203,7 @@ class WebServer(private val app: PixelDenApp) {
             "GET /api/thumb" -> {
                 val path = req.query["path"].orEmpty()
                 if (path !in listWallpapers()) { send(out, 404, "text/plain", ByteArray(0)); return }
-                val bmp = decodeSampled(path, 320, 180) ?: error("не картинка")
+                val bmp = decodeSampled(path, 320, 180) ?: error(tr("не картинка"))
                 val bytes = ByteArrayOutputStream().also { bmp.compress(Bitmap.CompressFormat.JPEG, 80, it) }.toByteArray()
                 bmp.recycle()
                 send(out, 200, "image/jpeg", bytes, cache = true)
@@ -209,13 +214,13 @@ class WebServer(private val app: PixelDenApp) {
                 val file = File(dir, name)
                 req.saveTo(file, 40L * 1024 * 1024)
                 val ok = BitmapFactory.Options().apply { inJustDecodeBounds = true }.also { BitmapFactory.decodeFile(file.path, it) }.outWidth > 0
-                if (!ok) { file.delete(); error("это не картинка") }
+                if (!ok) { file.delete(); error(tr("это не картинка")) }
                 DebugLog.i("веб-панель: загружены обои ${file.name} (${file.length() / 1024} КБ)")
                 json(out, 200, buildJsonObject { put("path", file.absolutePath) })
             }
             "POST /api/wallpaper/delete" -> {
                 val f = File(req.query["path"].orEmpty())
-                if (f.parentFile?.canonicalPath != uploadedWallpaperDir(app).canonicalPath) error("удалять можно только загруженные обои")
+                if (f.parentFile?.canonicalPath != uploadedWallpaperDir(app).canonicalPath) error(tr("удалять можно только загруженные обои"))
                 f.delete()
                 app.store.update { c ->
                     c.copy(
@@ -226,8 +231,8 @@ class WebServer(private val app: PixelDenApp) {
                 json(out, 200, buildJsonObject { put("ok", true) })
             }
             "POST /api/run" -> {
-                val s = app.engine.scenario(req.query["id"].orEmpty()) ?: error("сценарий не найден")
-                app.engine.run(s, "телефон")
+                val s = app.engine.scenario(req.query["id"].orEmpty()) ?: error(tr("сценарий не найден"))
+                app.engine.run(s, tr("телефон"))
                 json(out, 200, buildJsonObject { put("ok", true) })
             }
             "GET /api/city" -> {
@@ -237,21 +242,21 @@ class WebServer(private val app: PixelDenApp) {
                 })
             }
             "POST /api/text" -> {
-                val svc = DenAccessibilityService.instance ?: error("служба кнопок PixelTv выключена")
+                val svc = DenAccessibilityService.instance ?: error(tr("служба кнопок PixelTv выключена"))
                 val ok = svc.typeText(req.text(10_000), append = req.query["append"] == "1")
                 json(out, if (ok) 200 else 409, buildJsonObject {
                     put("ok", ok)
-                    if (!ok) put("error", "На ТВ сейчас не выбрано поле ввода. Выберите его пультом и повторите.")
+                    if (!ok) put("error", tr("На ТВ сейчас не выбрано поле ввода. Выберите его пультом и повторите."))
                 })
             }
             "POST /api/nav" -> {
-                val svc = DenAccessibilityService.instance ?: error("служба кнопок PixelTv выключена")
+                val svc = DenAccessibilityService.instance ?: error(tr("служба кнопок PixelTv выключена"))
                 val action = when (req.query["a"]) {
                     "back" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
                     "home" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME
                     "recents" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS
                     "sleep" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN
-                    else -> error("неизвестное действие")
+                    else -> error(tr("неизвестное действие"))
                 }
                 json(out, 200, buildJsonObject { put("ok", svc.performGlobalAction(action)) })
             }
@@ -273,7 +278,7 @@ class WebServer(private val app: PixelDenApp) {
             }
             "GET /api/log" -> send(out, 200, "text/plain; charset=utf-8",
                 DebugLog.entries.value.takeLast(300).joinToString("\n") { DebugLog.format(it) }.toByteArray())
-            else -> json(out, 404, buildJsonObject { put("error", "нет такого запроса") })
+            else -> json(out, 404, buildJsonObject { put("error", tr("нет такого запроса")) })
         }
     }
 
@@ -294,11 +299,16 @@ class WebServer(private val app: PixelDenApp) {
         }
         if (next.talkNews && !old.talkNews) app.news.start()
         if (!next.talkNews && old.talkNews) app.news.stop()
+        if (next.talkNews && (next.newsSource != old.newsSource || next.newsCustomUrl != old.newsCustomUrl)) app.scope.launch { app.news.refresh() }
+        // Язык сменился — перезапуск процесса (подписи и списки создаются один раз).
+        if (com.pixelden.launcher.i18n.I18n.resolve(next.language) != com.pixelden.launcher.i18n.I18n.lang) {
+            app.scope.launch { kotlinx.coroutines.delay(800); android.os.Process.killProcess(android.os.Process.myPid()) }
+        }
         if (!next.webPanel) app.scope.launch { kotlinx.coroutines.delay(500); stop() }
         com.pixelden.launcher.system.MemoryGuard.apply(next.memoryGuard)
         com.pixelden.launcher.system.Updater.apply(next.autoUpdate)
         Scheduler.scheduleAll(app, next)
-        app.engine.notify("Настройки пришли с телефона!")
+        app.engine.notify(tr("Настройки пришли с телефона!"))
     }
 
     private fun state(cfg: LauncherConfig): JsonObject {
@@ -323,9 +333,11 @@ class WebServer(private val app: PixelDenApp) {
             put("timeSlots", pairs(TIME_SLOTS))
             put("mascots", pairs(MASCOTS.map { it.id to it.name }))
             put("fonts", pairs(FONTS))
-            put("effects", pairs(FOCUS_EFFECTS.map { it.first to it.second.removePrefix("Только ") }))
+            put("effects", pairs(FOCUS_EFFECTS.map { it.first to it.second.removePrefix(tr("Только ")) }))
             put("transitions", pairs(SCREEN_TRANSITIONS))
             put("widgets", pairs(WIDGETS))
+            put("languages", pairs(com.pixelden.launcher.i18n.I18n.LANGUAGES.map { (id, n) -> id to (if (id == "auto") tr("как в системе") else n) }))
+            put("newsSources", pairs(listOf("auto" to tr("по языку")) + com.pixelden.launcher.weather.NewsSources.ALL.map { it.id to it.name } + ("custom" to tr("свой адрес RSS"))))
             putJsonArray("accents") { com.pixelden.launcher.ui.ACCENTS.forEach { add(it) } }
             putJsonArray("backgrounds") { com.pixelden.launcher.ui.BACKGROUNDS.forEach { add(it) } }
         }

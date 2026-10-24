@@ -1,5 +1,6 @@
 package com.pixelden.launcher.web
 
+import com.pixelden.launcher.i18n.tr
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -46,7 +47,7 @@ class InstallReceiver : BroadcastReceiver() {
             PackageInstaller.STATUS_SUCCESS -> DebugLog.i("APK установлен")
             else -> {
                 DebugLog.e("APK не установлен: $status $msg")
-                Toast.makeText(context, "Установка не удалась: ${msg ?: status}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, tr("Установка не удалась: {0}", (msg ?: status)), Toast.LENGTH_LONG).show()
             }
         }
     }

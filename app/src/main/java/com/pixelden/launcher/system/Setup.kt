@@ -1,5 +1,6 @@
 package com.pixelden.launcher.system
 
+import com.pixelden.launcher.i18n.tr
 import android.content.Context
 import com.pixelden.launcher.scenario.DebugLog
 
@@ -31,6 +32,6 @@ object Setup {
             ).joinToString("; "),
         )
         DebugLog.i("права выданы через adb ТВ")
-        return "Готово: права выданы, PixelTv — главный экран"
+        return tr("Готово: права выданы, PixelTv — главный экран")
     }
 }

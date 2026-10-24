@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import android.view.KeyEvent
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
@@ -62,12 +63,12 @@ val FONTS = listOf(
 )
 
 val FOCUS_EFFECTS = listOf(
-    "scale" to "Только увеличение",
-    "dim" to "Затемнение остальных",
-    "glow" to "Свечение",
-    "glitch" to "Глюк",
-    "pixel" to "Пиксельное проявление",
-    "crt" to "ЭЛТ-развёртка",
+    "scale" to tr("Только увеличение"),
+    "dim" to tr("Затемнение остальных"),
+    "glow" to tr("Свечение"),
+    "glitch" to tr("Глюк"),
+    "pixel" to tr("Пиксельное проявление"),
+    "crt" to tr("ЭЛТ-развёртка"),
 )
 
 val ACCENTS = listOf(

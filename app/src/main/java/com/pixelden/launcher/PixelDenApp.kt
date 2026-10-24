@@ -1,5 +1,6 @@
 package com.pixelden.launcher
 
+import com.pixelden.launcher.i18n.tr
 import android.app.Application
 import com.pixelden.launcher.apps.AppRepository
 import com.pixelden.launcher.data.ConfigStore
@@ -34,6 +35,8 @@ class PixelDenApp : Application() {
         super.onCreate()
         instance = this
         store = ConfigStore(this)
+        // Язык — до всего остального: списки разделов и подписи создаются с первым обращением.
+        com.pixelden.launcher.i18n.I18n.init(this, store.current.language)
         apps = AppRepository(this, scope)
         engine = ScenarioEngine(this, store, scope)
         weather = com.pixelden.launcher.weather.WeatherRepository(store, scope).also { it.start() }
@@ -60,8 +63,8 @@ class PixelDenApp : Application() {
                 val mi = android.os.Debug.MemoryInfo().also { android.os.Debug.getMemoryInfo(it) }
                 val stats = mi.memoryStats
                 com.pixelden.launcher.scenario.DebugLog.i(
-                    "память: всего ${mi.totalPss / 1024} МБ · картинки ${(stats["summary.native-heap"]?.toIntOrNull() ?: 0) / 1024} МБ" +
-                        " · видеопамять ${(stats["summary.graphics"]?.toIntOrNull() ?: 0) / 1024} МБ · Java ${(stats["summary.java-heap"]?.toIntOrNull() ?: 0) / 1024} МБ",
+                    tr("память: всего {0} МБ · картинки {1} МБ", (mi.totalPss / 1024), ((stats["summary.native-heap"]?.toIntOrNull() ?: 0) / 1024)) +
+                        tr(" · видеопамять {0} МБ · Java {1} МБ", ((stats["summary.graphics"]?.toIntOrNull() ?: 0) / 1024), ((stats["summary.java-heap"]?.toIntOrNull() ?: 0) / 1024)),
                 )
             }
         }

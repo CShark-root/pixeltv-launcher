@@ -1,5 +1,6 @@
 package com.pixelden.launcher
 
+import com.pixelden.launcher.i18n.tr
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -61,7 +62,7 @@ class HomeActivity : ComponentActivity() {
         val app = PixelDenApp.instance
         // Лаунчер стартует первым после загрузки — дублируем boot-триггер на случай,
         // если BOOT_COMPLETED придёт раньше, чем процесс успеет подписаться.
-        if (SystemClock.elapsedRealtime() < 5 * 60_000) app.engine.onBoot("старт лаунчера")
+        if (SystemClock.elapsedRealtime() < 5 * 60_000) app.engine.onBoot(tr("старт лаунчера"))
 
         // Без этого права лаунчер не видит картинки для обоев и не сохраняет резервную копию.
         if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {

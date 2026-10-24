@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,10 +38,10 @@ import java.util.Locale
 
 /** Виджеты главного экрана: id, название для настроек. */
 val WIDGETS = listOf(
-    "calendar" to "Праздники",
-    "rates" to "Курсы валют",
-    "timer" to "Таймер сна",
-    "health" to "Память ТВ",
+    "calendar" to tr("Праздники"),
+    "rates" to tr("Курсы валют"),
+    "timer" to tr("Таймер сна"),
+    "health" to tr("Память ТВ"),
 )
 
 private val ICON_CAL = listOf("#.#...#.#", "#########", "#+++++++#", "#+#+#+#+#", "#+++++++#", "#+#+#+#+#", "#+++++++#", "#########", ".........")
@@ -101,7 +102,7 @@ private fun RatesTile() {
     fun delta(r: com.pixelden.launcher.weather.Rate?, code: String) =
         "$code " + (r?.let { val d = it.value - it.previous; (if (d >= 0) "+" else "") + "%.2f".format(d) } ?: "…")
     val value = if (change) delta(usd, "USD") + "  " + delta(eur, "EUR") else fmt(usd, "USD") + "  " + fmt(eur, "EUR")
-    WidgetTile(ICON_RATE, if (change) "Изменение за день" else "Курс ЦБ", value) { change = !change }
+    WidgetTile(ICON_RATE, if (change) tr("Изменение за день") else tr("Курс ЦБ"), value) { change = !change }
 }
 
 @Composable
@@ -112,8 +113,8 @@ private fun TimerTile() {
     }
     val left = endsAt?.let { ((it - now + 59_999) / 60_000).toInt() }
     WidgetTile(
-        ICON_MOON, "Таймер сна",
-        if (left == null) "выкл · OK — включить" else "через $left мин",
+        ICON_MOON, tr("Таймер сна"),
+        if (left == null) tr("выкл · OK — включить") else tr("через {0} мин", left),
         onLongClick = { SleepTimer.set(0) },
     ) { SleepTimer.set(SleepTimer.nextStep()) }
 }
@@ -129,8 +130,8 @@ private fun HealthTile(onClick: () -> Unit) {
     }
     val s = snap
     WidgetTile(
-        ICON_RAM, "Свободно памяти",
-        if (s == null) "…" else "${gb(s.ramAvail)} из ${gb(s.ramTotal)} ГБ" + (s.tempC?.let { " · ${it.toInt()}°" } ?: ""),
+        ICON_RAM, tr("Свободно памяти"),
+        if (s == null) "…" else tr("{0} из {1} ГБ", (gb(s.ramAvail)), (gb(s.ramTotal))) + (s.tempC?.let { " · ${it.toInt()}°" } ?: ""),
         onClick = onClick,
     )
 }
@@ -141,14 +142,14 @@ private fun HealthTile(onClick: () -> Unit) {
 private fun CalendarTile() {
     val (title, value) = remember {
         val today = Holidays.today()
-        if (today != null) "Сегодня" to today
-        else Holidays.next()?.let { (name, d) -> "Через ${days(d)}" to name } ?: ("Праздники" to "—")
+        if (today != null) tr("Сегодня") to today
+        else Holidays.next()?.let { (name, d) -> tr("Через {0}", (days(d))) to name } ?: (tr("Праздники") to "—")
     }
     WidgetTile(ICON_CAL, title, value) {}
 }
 
 private fun days(n: Int) = "$n " + when {
-    n % 10 == 1 && n % 100 != 11 -> "день"
-    n % 10 in 2..4 && n % 100 !in 12..14 -> "дня"
-    else -> "дней"
+    n % 10 == 1 && n % 100 != 11 -> tr("день")
+    n % 10 in 2..4 && n % 100 !in 12..14 -> tr("дня")
+    else -> tr("дней")
 }

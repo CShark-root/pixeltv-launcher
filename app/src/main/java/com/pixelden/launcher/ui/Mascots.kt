@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
@@ -52,12 +53,12 @@ import kotlin.random.Random
 data class Mascot(val id: String, val name: String, val note: String)
 
 val MASCOTS = listOf(
-    Mascot("pinch", "Pinch", "Оранжевый кирпичик"),
-    Mascot("ember", "Ember", "Огненный лис"),
-    Mascot("sprocket", "Sprocket", "Серый полосатый кот"),
-    Mascot("nyx", "Nyx", "Чёрный кот с зелёными глазами"),
-    Mascot("mango", "Mango", "Рыжий полосатый кот"),
-    Mascot("frost", "Frost", "Белый кот с голубыми глазами"),
+    Mascot("pinch", "Pinch", tr("Оранжевый кирпичик")),
+    Mascot("ember", "Ember", tr("Огненный лис")),
+    Mascot("sprocket", "Sprocket", tr("Серый полосатый кот")),
+    Mascot("nyx", "Nyx", tr("Чёрный кот с зелёными глазами")),
+    Mascot("mango", "Mango", tr("Рыжий полосатый кот")),
+    Mascot("frost", "Frost", tr("Белый кот с голубыми глазами")),
 )
 
 fun mascotById(id: String) = MASCOTS.firstOrNull { it.id == id } ?: MASCOTS.first()

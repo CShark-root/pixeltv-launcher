@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
@@ -45,15 +46,15 @@ import kotlin.random.Random
 
 /** Живые пиксельные сцены: значение wallpaperPath вида "scene:…". */
 val SCENES = listOf(
-    "scene:sky" to "Пейзаж по времени суток",
-    "scene:city" to "Ночной город",
-    "scene:fire" to "Камин",
+    "scene:sky" to tr("Пейзаж по времени суток"),
+    "scene:city" to tr("Ночной город"),
+    "scene:fire" to tr("Камин"),
 )
 
 fun sceneName(path: String?): String? = SCENES.firstOrNull { it.first == path }?.second
 
 /** Слоты обоев по времени суток. */
-val TIME_SLOTS = listOf("morning" to "Утро 5–11", "day" to "День 11–17", "evening" to "Вечер 17–22", "night" to "Ночь 22–5")
+val TIME_SLOTS = listOf("morning" to tr("Утро 5–11"), "day" to tr("День 11–17"), "evening" to tr("Вечер 17–22"), "night" to tr("Ночь 22–5"))
 
 fun timeSlot(hour: Float): String = when (hour.toInt()) {
     in 5..10 -> "morning"

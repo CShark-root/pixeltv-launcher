@@ -1,5 +1,6 @@
 package com.pixelden.launcher.ui
 
+import com.pixelden.launcher.i18n.tr
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
@@ -22,9 +23,9 @@ import androidx.compose.ui.graphics.Color
 import kotlin.random.Random
 
 val SCREEN_TRANSITIONS = listOf(
-    "pixels" to "Пиксели",
-    "fade" to "Растворение",
-    "none" to "Без перехода",
+    "pixels" to tr("Пиксели"),
+    "fade" to tr("Растворение"),
+    "none" to tr("Без перехода"),
 )
 
 /** Переход «растворение»: новый экран проявляется с лёгким приближением, старый быстро гаснет. */

@@ -1,5 +1,6 @@
 package com.pixelden.launcher.system
 
+import com.pixelden.launcher.i18n.tr
 import android.app.ActivityManager
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
@@ -140,6 +141,6 @@ object MemoryGuard {
         val pkgs = app.apps.apps.value.map { it.pkg } + Health.recentApps(app).map { it.pkg }
         val freed = Health.freeMemory(app, pkgs.toSet())
         DebugLog.i("сторож памяти: свободно было $freePct%, закрыл фон — освобождено ${mb(freed)} МБ")
-        if (freed > 30L * 1_048_576) app.engine.notify("Прибрался в памяти: +${mb(freed)} МБ")
+        if (freed > 30L * 1_048_576) app.engine.notify(tr("Прибрался в памяти: +{0} МБ", (mb(freed))))
     }
 }

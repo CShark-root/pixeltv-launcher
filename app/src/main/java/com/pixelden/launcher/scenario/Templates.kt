@@ -1,5 +1,6 @@
 package com.pixelden.launcher.scenario
 
+import com.pixelden.launcher.i18n.tr
 import android.view.KeyEvent
 import com.pixelden.launcher.data.Action
 import com.pixelden.launcher.data.PressType
@@ -15,12 +16,12 @@ object Templates {
     fun initial(): List<Scenario> = listOf(
         Scenario(
             id = newId(),
-            name = "S/PDIF после загрузки",
+            name = tr("S/PDIF после загрузки"),
             enabled = false,
             trigger = Trigger.Boot(delaySec = 15),
             actions = listOf(
                 Action.OpenSettings("android.settings.SOUND_SETTINGS"),
-                Action.ClickText("Динамики", 10),
+                Action.ClickText(tr("Динамики"), 10),
                 Action.ClickText("S/PDIF", 6),
                 Action.Wait(1),
                 Action.GoHome,
@@ -28,26 +29,26 @@ object Templates {
         ),
         Scenario(
             id = newId(),
-            name = "Удержание Меню → SmartTube",
+            name = tr("Удержание Меню → SmartTube"),
             enabled = false,
             trigger = Trigger.Key(KeyEvent.KEYCODE_MENU, PressType.LONG),
             actions = listOf(Action.LaunchApp("org.smarttube.stable")),
         ),
         Scenario(
             id = newId(),
-            name = "Вечер: громкость 20%",
+            name = tr("Вечер: громкость 20%"),
             enabled = false,
             trigger = Trigger.Time(22, 0),
             actions = listOf(Action.Volume(20)),
         ),
         Scenario(
             id = newId(),
-            name = "Ночь: спать",
+            name = tr("Ночь: спать"),
             enabled = false,
             trigger = Trigger.Time(1, 30),
             actions = listOf(Action.Sleep),
         ),
     )
 
-    fun blank() = Scenario(id = newId(), name = "Новый сценарий", trigger = Trigger.Manual)
+    fun blank() = Scenario(id = newId(), name = tr("Новый сценарий"), trigger = Trigger.Manual)
 }

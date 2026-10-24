@@ -1,5 +1,6 @@
 package com.pixelden.launcher.system
 
+import com.pixelden.launcher.i18n.tr
 import android.content.Context
 import com.pixelden.launcher.BuildConfig
 import com.pixelden.launcher.PixelDenApp
@@ -50,7 +51,7 @@ object Updater {
             delay(60_000)
             while (true) {
                 val found = check()
-                if (found != null) app.engine.notify("Вышла новая версия PixelTv ${found.version}! Настройки → О программе")
+                if (found != null) app.engine.notify(tr("Вышла новая версия PixelTv {0}! Настройки → О программе", (found.version)))
                 delay(24 * 3_600_000L)
             }
         }
@@ -68,14 +69,14 @@ object Updater {
                 c.setRequestProperty("User-Agent", "PixelTv/${BuildConfig.VERSION_NAME}")
                 c.setRequestProperty("Accept", "application/vnd.github+json")
                 val body = try {
-                    if (c.responseCode != 200) error("GitHub ответил ${c.responseCode}")
+                    if (c.responseCode != 200) error(tr("GitHub ответил {0}", (c.responseCode)))
                     c.inputStream.bufferedReader().use { it.readText() }
                 } finally { c.disconnect() }
                 val o = json.parseToJsonElement(body).jsonObject
-                val tag = o["tag_name"]?.jsonPrimitive?.contentOrNull?.removePrefix("v") ?: error("нет версии")
+                val tag = o["tag_name"]?.jsonPrimitive?.contentOrNull?.removePrefix("v") ?: error(tr("нет версии"))
                 val asset = o["assets"]?.jsonArray?.map { it.jsonObject }
                     ?.firstOrNull { it["name"]?.jsonPrimitive?.contentOrNull?.endsWith(".apk") == true }
-                    ?: error("в релизе нет APK")
+                    ?: error(tr("в релизе нет APK"))
                 Release(
                     tag,
                     o["body"]?.jsonPrimitive?.contentOrNull.orEmpty(),
@@ -113,7 +114,7 @@ object Updater {
                     c.setRequestProperty("User-Agent", "PixelTv/${BuildConfig.VERSION_NAME}")
                     val code = c.responseCode
                     if (code in 300..399 && hops++ < 5) { url = URL(c.getHeaderField("Location")); c.disconnect(); continue }
-                    if (code != 200) error("скачивание: HTTP $code")
+                    if (code != 200) error(tr("скачивание: HTTP {0}", code))
                     break
                 }
                 val total = c.contentLengthLong.takeIf { it > 0 } ?: rel.size
