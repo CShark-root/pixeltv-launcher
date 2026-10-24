@@ -21,7 +21,7 @@ A pixel-art home screen for Android TV with a living mascot, scenarios, phone co
 ## Install
 
 1. On the TV: Settings → Device Preferences → About → click *Build* 7 times, then enable **USB debugging** (and **Network debugging**, if your TV has a separate switch) in Developer options.
-2. Download `PixelTv-x.y.z.apk` from [Releases](https://github.com/{{OWNER}}/pixeltv-launcher/releases) and install it (e.g. `adb install PixelTv-x.y.z.apk`, or with a file manager / Send Files to TV).
+2. Download `PixelTv-x.y.z.apk` from [Releases](https://github.com/CShark-root/pixeltv-launcher/releases) and install it (e.g. `adb install PixelTv-x.y.z.apk`, or with a file manager / Send Files to TV).
 3. Open PixelTv → **Settings → Permissions & services → Grant all permissions automatically**. The TV asks “Allow debugging?” once; tick *Always* and press OK. This grants the permissions, enables the buttons service and makes PixelTv the home screen. No computer needed.
 4. Optional: **Settings → TV cleanup → Disable recommended**.
 
@@ -40,7 +40,7 @@ adb shell cmd package set-home-activity com.pixelden.launcher/.HomeActivity
 JDK 17 and the Android SDK (platform 34) are needed.
 
 ```sh
-./gradlew assembleRelease -Ppixeltv.repo={{OWNER}}/pixeltv-launcher
+./gradlew assembleRelease -Ppixeltv.repo=CShark-root/pixeltv-launcher
 ```
 
 Without a release key the APK is signed with the debug key. Release builds read `~/.pixeltv/keystore.properties` (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`) or the path in `PIXELTV_KEYSTORE`.
@@ -67,7 +67,7 @@ GPL-3.0. See [LICENSE](LICENSE).
 
 **Установка:**
 1. На ТВ включите «Для разработчиков» (7 нажатий на «Сборка»), там — «Отладка по USB» (и «Отладка по сети», если есть отдельный переключатель).
-2. Скачайте APK из [Releases](https://github.com/{{OWNER}}/pixeltv-launcher/releases) и установите (через `adb install` или Send Files to TV).
+2. Скачайте APK из [Releases](https://github.com/CShark-root/pixeltv-launcher/releases) и установите (через `adb install` или Send Files to TV).
 3. Откройте PixelTv → **Настройки → Права и службы → Выдать все права автоматически**. ТВ один раз спросит «Разрешить отладку?» — отметьте «Всегда» и нажмите OK.
 4. По желанию: **Настройки → Чистка ТВ → Отключить рекомендуемое**.
 
