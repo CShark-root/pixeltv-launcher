@@ -214,9 +214,13 @@ class NewsRepository(private val scope: CoroutineScope) {
     }
 }
 
-data class Rate(val code: String, val value: Double, val previous: Double)
+/** Сколько единиц валюты счёта стоит 1 [code]. */
+data class Rate(val code: String, val value: Double)
 
-/** Курсы ЦБ РФ (зеркало cbr-xml-daily.ru, без ключа). Обновляются раз в 3 часа. */
+/**
+ * Курсы валют (open.er-api.com, без ключа): любая валюта к любой. Обновляются раз в 3 часа.
+ * Что показывать — в настройках виджета: валюта счёта и до трёх валют.
+ */
 class RatesRepository(private val scope: CoroutineScope) {
     private val _rates = MutableStateFlow<List<Rate>>(emptyList())
     val rates: StateFlow<List<Rate>> = _rates
@@ -234,24 +238,38 @@ class RatesRepository(private val scope: CoroutineScope) {
     }
 
     suspend fun refresh(): Boolean {
+        val cfg = com.pixelden.launcher.PixelDenApp.instance.store.current
+        val base = Currencies.base(cfg)
+        val codes = Currencies.shown(cfg)
         val r = withContext(Dispatchers.IO) {
             runCatching {
-                val c = URL("https://www.cbr-xml-daily.ru/daily_json.js").openConnection() as HttpURLConnection
+                val c = URL("https://open.er-api.com/v6/latest/$base").openConnection() as HttpURLConnection
                 c.connectTimeout = 8000
                 c.readTimeout = 8000
                 c.setRequestProperty("User-Agent", "PixelTv/1.0")
                 val body = try { c.inputStream.bufferedReader().use { it.readText() } } finally { c.disconnect() }
-                val valute = json.parseToJsonElement(body).jsonObject["Valute"]!!.jsonObject
-                listOf("USD", "EUR", "CNY").mapNotNull { code ->
-                    val o = valute[code]?.jsonObject ?: return@mapNotNull null
-                    val nominal = o["Nominal"]?.jsonPrimitive?.doubleOrNull ?: 1.0
-                    Rate(code, o["Value"]!!.jsonPrimitive.double / nominal, o["Previous"]!!.jsonPrimitive.double / nominal)
-                }
+                val rates = json.parseToJsonElement(body).jsonObject["rates"]!!.jsonObject
+                // API отдаёт «сколько [code] за 1 base» — переворачиваем: сколько base стоит 1 [code].
+                codes.mapNotNull { code -> rates[code]?.jsonPrimitive?.doubleOrNull?.takeIf { it > 0 }?.let { Rate(code, 1 / it) } }
             }
         }
-        r.onSuccess { _rates.value = it; DebugLog.i("курсы: " + it.joinToString { "${it.code} ${"%.2f".format(it.value)}" }) }
+        r.onSuccess { _rates.value = it; DebugLog.i("курсы к $base: " + it.joinToString { "${it.code} ${"%.2f".format(it.value)}" }) }
             .onFailure { DebugLog.e("курсы не загрузились", it) }
         return r.isSuccess
+    }
+}
+
+/** Валюты для виджета курсов. */
+object Currencies {
+    val ALL = listOf("RUB", "USD", "EUR", "CNY", "GBP", "JPY", "CHF", "TRY", "KZT", "BYN", "UAH", "INR", "AED", "CAD", "AUD", "PLN")
+    const val MAX_SHOWN = 3
+
+    /** Валюта счёта: выбранная или по языку (рубль для русского, доллар для остальных). */
+    fun base(cfg: com.pixelden.launcher.data.LauncherConfig) = cfg.ratesBase.ifBlank { if (I18n.lang == "ru") "RUB" else "USD" }
+
+    fun shown(cfg: com.pixelden.launcher.data.LauncherConfig): List<String> {
+        val base = base(cfg)
+        return cfg.rateCodes.filter { it != base }.ifEmpty { if (base == "RUB") listOf("USD", "EUR") else listOf("EUR", "GBP").filter { it != base } }
     }
 }
 

@@ -69,6 +69,11 @@ object TvCleanup {
     }
 
     private fun isDefaultHome(context: Context): Boolean {
+        // Android 10+: главный экран — это роль HOME (resolveActivity на Google TV показывает старое значение).
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val rm = context.getSystemService(android.app.role.RoleManager::class.java)
+            if (rm != null && rm.isRoleAvailable(android.app.role.RoleManager.ROLE_HOME)) return rm.isRoleHeld(android.app.role.RoleManager.ROLE_HOME)
+        }
         val home = android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_HOME)
         return context.packageManager.resolveActivity(home, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName == context.packageName
     }

@@ -65,8 +65,10 @@ class HomeActivity : ComponentActivity() {
         if (SystemClock.elapsedRealtime() < 5 * 60_000) app.engine.onBoot(tr("старт лаунчера"))
 
         // Без этого права лаунчер не видит картинки для обоев и не сохраняет резервную копию.
-        if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE), 1)
+        // Android 13+ вместо общего права на память — отдельное право на картинки.
+        val storage = if (android.os.Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
+        if (checkSelfPermission(storage) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(storage, Manifest.permission.WRITE_EXTERNAL_STORAGE), 1)
         }
 
         setContent {

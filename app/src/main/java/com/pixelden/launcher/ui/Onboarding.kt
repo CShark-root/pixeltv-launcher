@@ -25,6 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixelden.launcher.PixelDenApp
@@ -92,7 +95,18 @@ fun OnboardingScreen(cfg: LauncherConfig) {
         "Language / Язык", tr("Права"), tr("Маскот"), tr("Погода"), tr("Избранное"), tr("Чистка ТВ"), tr("Готово!"),
     )
 
-    Box(Modifier.fillMaxSize().background(t.colors.bg), contentAlignment = Alignment.Center) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(t.colors.bg)
+            .onPreviewKeyEvent { e ->
+                // Пока открыто окно ввода города, «Назад» закрывает его.
+                if (cityEdit || e.nativeKeyEvent.keyCode != android.view.KeyEvent.KEYCODE_BACK) return@onPreviewKeyEvent false
+                if (e.type == KeyEventType.KeyUp && step > STEP_LANGUAGE) go(step - 1)
+                true
+            },
+        contentAlignment = Alignment.Center,
+    ) {
         Row(Modifier.fillMaxSize().padding(horizontal = 80.dp, vertical = 56.dp), verticalAlignment = Alignment.CenterVertically) {
             // Слева — маскот-проводник.
             Column(Modifier.width(360.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -107,8 +121,8 @@ fun OnboardingScreen(cfg: LauncherConfig) {
                     when (step) {
                         STEP_LANGUAGE -> {
                             item { PText("Выберите язык · Choose your language", 18.sp, t.colors.dim, Modifier.padding(bottom = 16.dp)) }
-                            items(listOf("ru" to "Русский", "en" to "English")) { (id, name) ->
-                                SettingRow(name, if (I18n.lang == id) "•" else null, focusRequester = if (id == "ru") rememberAutoFocus() else null) {
+                            items(listOf("auto" to "Как в системе · System default", "ru" to "Русский", "en" to "English")) { (id, name) ->
+                                SettingRow(name, if (cfg.language == id) "•" else null, focusRequester = if (id == "auto") rememberAutoFocus() else null) {
                                     store.update { it.copy(language = id, onboardingStep = STEP_PERMISSIONS) }
                                     // Подписи создаются с запуском процесса — перезапускаемся на новом языке.
                                     if (I18n.resolve(id) != I18n.lang) scope.launch { delay(400); android.os.Process.killProcess(android.os.Process.myPid()) }
@@ -175,6 +189,8 @@ fun OnboardingScreen(cfg: LauncherConfig) {
                             item { SettingRow(tr("Начать"), focusRequester = rememberAutoFocus()) { finish() } }
                         }
                     }
+                    // Вернуться на шаг назад — строкой внизу или кнопкой «Назад» на пульте.
+                    if (step > STEP_LANGUAGE) item { SettingRow(tr("← Назад")) { go(step - 1) } }
                 }
             }
         }

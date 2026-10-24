@@ -211,6 +211,7 @@ fun HomeScreen(
             }
         }
 
+        if (WidgetDialogs.rates) RatesChooser(cfg)
         menuFor?.let { entry ->
             AppMenu(
                 entry = entry,

@@ -21,7 +21,9 @@ object Scheduler {
             am.cancel(pi)
             val t = s.trigger as? Trigger.Time ?: continue
             if (!s.enabled || t.days.isEmpty()) continue
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTime(t), pi)
+            // Android 12+: без права на точные будильники setExact бросает SecurityException — тогда ставим обычный.
+            if (android.os.Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTime(t), pi)
+            else am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, nextTime(t), pi)
         }
     }
 

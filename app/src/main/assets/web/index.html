@@ -433,7 +433,7 @@ function rSet() {
     ${chk('showFavorites', 'Ряд «Избранное»')}${chk('showInputs', 'Ряд «Входы»')}${chk('showCategories', 'Категории')}${chk('showAllApps', 'Все приложения')}
     ${chk('showManualScenarios', 'Кнопки ручных сценариев')}
     ${chk('showWidgets', 'Виджеты под часами')}
-    ${S.widgets.map(w => `<label class="row"><div class="grow">&nbsp;&nbsp;${esc(w.name)}</div><input type="checkbox" ${C.widgets.includes(w.id) ? 'checked' : ''} onchange="C.widgets=this.checked?[...C.widgets,'${w.id}']:C.widgets.filter(x=>x!=='${w.id}');touch()"></label>`).join('')}
+    ${S.widgets.map(w => `<label class="row"><div class="grow">&nbsp;&nbsp;${esc(w.name)}</div><input type="checkbox" ${C.widgets.includes(w.id) ? 'checked' : ''} onchange="if(this.checked&&C.widgets.length>=4){this.checked=false;toast(T('Не больше 4 виджетов — сначала выключите какой-нибудь'));return}C.widgets=this.checked?[...C.widgets,'${w.id}']:C.widgets.filter(x=>x!=='${w.id}');touch()"></label>`).join('')}
   </div>
   <h2>Погода</h2><div class="card">
     ${chk('weatherEnabled', 'Показывать погоду')}

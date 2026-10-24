@@ -20,7 +20,7 @@ data class LauncherConfig(
     val mascotScale: Int = 4,
 
     // Внешний вид
-    val font: String = "tiny5",
+    val font: String = "handjet",
     val accent: Long = 0xFFD97757,
     val background: Long = 0xFF14121A,
     val wallpaperPath: String? = null,
@@ -71,6 +71,9 @@ data class LauncherConfig(
     /** Источник новостей: auto (по языку), id из NewsSources или custom. */
     val newsSource: String = "auto",
     val newsCustomUrl: String = "",
+    /** Виджет курсов: валюта счёта (пусто — по языку) и какие валюты показывать (пусто — по умолчанию). */
+    val ratesBase: String = "",
+    val rateCodes: List<String> = emptyList(),
 
     // Ряды
     val showFavorites: Boolean = true,

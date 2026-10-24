@@ -463,10 +463,14 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
             }
 
             if (page == "widgets") {
-                item { ToggleRow(tr("Ряд виджетов под часами"), cfg.showWidgets) { v -> set { it.copy(showWidgets = v) }; if (v) app.rates.start() } }
+                item { ToggleRow(tr("Ряд виджетов под часами"), cfg.showWidgets, tr("Можно включить до {0} виджетов", MAX_WIDGETS)) { v -> set { it.copy(showWidgets = v) }; if (v) app.rates.start() } }
                 // Порядок строк постоянный — переключение не двигает строку и не уводит фокус.
                 items(WIDGETS, key = { "w" + it.first }) { (id, name) ->
                     ToggleRow(name, id in cfg.widgets) { on ->
+                        if (on && cfg.widgets.size >= MAX_WIDGETS) {
+                            toast(context, tr("Не больше {0} виджетов — сначала выключите какой-нибудь", MAX_WIDGETS))
+                            return@ToggleRow
+                        }
                         // Новый виджет встаёт на своё место из общего списка, а не в конец.
                         set { c -> c.copy(widgets = WIDGETS.map { it.first }.filter { w -> if (w == id) on else w in c.widgets }) }
                         if (on && id == "rates") app.rates.start()
