@@ -8,6 +8,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,11 +70,12 @@ private val ICON_RAM = listOf(".#.#.#.#.", "#########", "#+++++++#", "#+##+##+#"
 
 @Composable
 fun WidgetRow(cfg: LauncherConfig, onTopFocus: () -> Unit, onOpenHealth: () -> Unit) {
+    // Ряд делится поровну на ширину экрана — как избранное; высота у всех плиток одна.
     Row(
-        Modifier.padding(bottom = 12.dp).onFocusChanged { if (it.hasFocus) onTopFocus() },
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(bottom = 12.dp).onFocusChanged { if (it.hasFocus) onTopFocus() },
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        for (id in cfg.widgets.take(MAX_WIDGETS)) when (id) {
+        for (id in cfg.widgets.take(MAX_WIDGETS)) Box(Modifier.weight(1f).fillMaxHeight()) { when (id) {
             "calendar" -> CalendarTile()
             "rates" -> RatesTile()
             "timer" -> TimerTile()
@@ -78,7 +84,7 @@ fun WidgetRow(cfg: LauncherConfig, onTopFocus: () -> Unit, onOpenHealth: () -> U
             "net" -> NetTile()
             "moon" -> MoonTile()
             "news" -> NewsTile()
-        }
+        } }
     }
 }
 
@@ -94,7 +100,7 @@ private fun WidgetTile(
     var focused by remember { mutableStateOf(false) }
     Row(
         Modifier
-            .widthIn(min = 230.dp, max = 440.dp)
+            .fillMaxSize()
             .tvClickable(onFocus = { focused = it }, onLongClick = onLongClick, onClick = onClick)
             .pixelBox(if (focused) t.colors.accent else Color.Transparent, (if (focused) t.colors.surfaceHi else t.colors.surface).copy(alpha = 0.88f), t.border)
             .padding(horizontal = 14.dp, vertical = 10.dp),
@@ -103,7 +109,7 @@ private fun WidgetTile(
         PixelIcon(icon, 3, if (focused) t.colors.accent else t.colors.text.copy(alpha = 0.7f), if (focused) t.colors.text else t.colors.surfaceHi)
         Column(Modifier.padding(start = 12.dp)) {
             PText(title, 13.sp, t.colors.dim)
-            PText(value, 16.sp, if (focused) t.colors.text else t.colors.text.copy(alpha = 0.9f))
+            PText(value, 16.sp, if (focused) t.colors.text else t.colors.text.copy(alpha = 0.9f), maxLines = 2)
         }
     }
 }
@@ -118,7 +124,7 @@ private fun RatesTile() {
     // Сменили валюты — перезагрузить курсы.
     LaunchedEffect(base, codes) { if (rates.map { it.code } != codes) app.rates.refresh() }
     val value = codes.joinToString("  ") { c -> c + " " + (rates.firstOrNull { it.code == c }?.let { fmt2(it.value) } ?: "…") }
-    WidgetTile(ICON_RATE, tr("Курс к {0} · OK — выбрать", base), value) { WidgetDialogs.rates = true }
+    WidgetTile(ICON_RATE, tr("Курс к {0}", base), value) { WidgetDialogs.rates = true }
 }
 
 /** Число с двумя знаками в формате языка интерфейса (80,54 или 80.54). */
