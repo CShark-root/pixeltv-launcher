@@ -16,6 +16,8 @@ object Setup {
         // Службы спецвозможностей других приложений не выключаем — дописываем свою к списку.
         val current = adb.shell("settings get secure enabled_accessibility_services").trim()
             .takeIf { it.isNotBlank() && it != "null" }?.split(':').orEmpty()
+            // В команду идут только похожие на «пакет/класс» записи и в кавычках — строка пришла из настроек.
+            .filter { Regex("[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+").matches(it) }
         val services = (current + service).distinct().joinToString(":")
         adb.shell(
             listOf(
@@ -32,7 +34,7 @@ object Setup {
                 "appops set $p WRITE_SETTINGS allow",
                 "appops set $p GET_USAGE_STATS allow",
                 "appops set $p REQUEST_INSTALL_PACKAGES allow",
-                "settings put secure enabled_accessibility_services $services",
+                "settings put secure enabled_accessibility_services '$services'",
                 "settings put secure accessibility_enabled 1",
                 "cmd package set-home-activity $p/.HomeActivity",
                 "cmd role add-role-holder android.app.role.HOME $p",

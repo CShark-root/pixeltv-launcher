@@ -57,6 +57,10 @@ object TvCleanup {
     /** Лаунчеры Google отключаем, только если главный экран — уже PixelTv, иначе ТВ останется без экрана. */
     private val LAUNCHERS = setOf("com.google.android.tvlauncher", "com.google.android.leanbacklauncher", "com.mitv.tvhome.atv")
 
+    /** Имя пакета, которое безопасно вставить в команду adb: только буквы, цифры, «_» и точки. */
+    private val PKG = Regex("[A-Za-z][A-Za-z0-9_]*([.][A-Za-z0-9_]+)+")
+    fun isPackageName(s: String) = PKG.matches(s)
+
     data class State(val item: BloatItem, val enabled: Boolean)
 
     /** Что из каталога есть на этом ТВ и в каком состоянии. */
@@ -90,6 +94,7 @@ object TvCleanup {
     }
 
     fun enable(context: Context, pkg: String): String {
+        if (!isPackageName(pkg)) error(tr("{0} нет в списке разрешённых", pkg))
         val out = AdbClient(context).shell("pm enable $pkg").trim()
         PixelDenApp.instance.store.update { it.copy(cleanupDisabled = it.cleanupDisabled - pkg) }
         DebugLog.i("чистка: включено $pkg ($out)")
@@ -110,7 +115,8 @@ object TvCleanup {
 
     /** Вернуть всё, что отключал лаунчер, — как было до чистки. */
     fun restoreAll(context: Context): Int {
-        val list = PixelDenApp.instance.store.current.cleanupDisabled
+        // Список хранится в настройках, а их можно подменить резервной копией — в команду идут только настоящие имена пакетов.
+        val list = PixelDenApp.instance.store.current.cleanupDisabled.filter(::isPackageName)
         if (list.isEmpty()) return 0
         AdbClient(context).shell(list.joinToString("; ") { "pm enable $it" })
         PixelDenApp.instance.store.update { it.copy(cleanupDisabled = emptyList()) }

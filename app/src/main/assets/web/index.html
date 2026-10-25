@@ -98,6 +98,7 @@ pre { white-space: pre-wrap; font: 13px/1.4 ui-monospace, monospace; color: var(
 
 <script>
 'use strict';
+let WALLS = [], CITIES = [];
 let PIN = localStorage.getItem('pixeltv-pin') || '';
 let S = null;          // состояние с ТВ
 let C = null;          // редактируемая копия конфига
@@ -185,7 +186,7 @@ function rRemote() {
     </div>
   </div>
   <h2>Сценарии</h2>
-  <div class="btns">${manual.map(s => `<button class="btn" onclick="run('${s.id}')">▶ ${esc(s.name)}</button>`).join('') || '<span class="hint">Нет включённых сценариев</span>'}</div>`;
+  <div class="btns">${manual.map(s => `<button class="btn" onclick="run(C.scenarios[${C.scenarios.indexOf(s)}].id)">▶ ${esc(s.name)}</button>`).join('') || '<span class="hint">Нет включённых сценариев</span>'}</div>`;
 }
 async function sendText(append) {
   const v = $('#txt').value; if (!v) return;
@@ -283,12 +284,13 @@ function rScn() {
     <div class="scn-head"><input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="C.scenarios[${i}].enabled=this.checked;touch();rScn()">
       <div class="grow" style="flex:1"><b>${esc(s.name)}</b><div class="hint">${esc(trigText(s.trigger))}</div></div></div>
     <div class="hint" style="margin:8px 0">${s.actions.map(a => esc(actText(a))).join(' → ') || 'нет действий'}</div>
-    <div class="btns"><button class="btn small" onclick="run('${s.id}')">▶ Запустить</button>
-      <button class="btn small" onclick="editing='${s.id}';rScn()">Изменить</button>
-      <button class="btn small bad" onclick="if(confirm('Удалить «${esc(s.name)}»?')){C.scenarios.splice(${i},1);touch();rScn()}">Удалить</button></div>
+    <div class="btns"><button class="btn small" onclick="run(C.scenarios[${i}].id)">▶ Запустить</button>
+      <button class="btn small" onclick="editing=C.scenarios[${i}].id;rScn()">Изменить</button>
+      <button class="btn small bad" onclick="delScn(${i})">Удалить</button></div>
   </div>`).join('')}
   <p class="hint">«Запустить» выполняет сохранённую на ТВ версию — сначала сохраните изменения.</p>`;
 }
+function delScn(i) { if (confirm(T('Удалить «{0}»?').replace('{0}', C.scenarios[i].name))) { C.scenarios.splice(i, 1); touch(); rScn(); } }
 function newScn() { const s = { id: uid(), name: 'Новый сценарий', enabled: true, trigger: { type: 'manual' }, actions: [] }; C.scenarios.push(s); editing = s.id; touch(); rScn(); }
 function scn() { return C.scenarios.find(s => s.id === editing); }
 function setTrig(type) {
@@ -351,7 +353,9 @@ let wallTarget = 'main';
 function curWall() { return wallTarget === 'main' ? C.wallpaperPath : C.timeWallpapers[wallTarget]; }
 function rWall() {
   const cur = curWall();
-  const tile = (path, name, bg, del) => `<div class="wall ${path === cur ? 'sel' : ''}" style="${bg ? `background-image:url('${bg}')` : ''}" onclick='pickWall(${JSON.stringify(path)})'><span>${esc(name)}</span>${del ? `<button class="del" onclick='event.stopPropagation();delWall(${JSON.stringify(path)})'>✕</button>` : ''}</div>`;
+  // Пути не вставляем в код обработчиков (имя файла может содержать кавычки) — только номер в списке WALLS.
+  WALLS = [];
+  const tile = (path, name, bg, del) => { const i = WALLS.push(path) - 1; return `<div class="wall ${path === cur ? 'sel' : ''}" style="${bg ? `background-image:url('${bg}')` : ''}" onclick="pickWall(WALLS[${i}])"><span>${esc(name)}</span>${del ? `<button class="del" onclick="event.stopPropagation();delWall(WALLS[${i}])">✕</button>` : ''}</div>`; };
   $('#t-wall').innerHTML = `
   <h2>Куда ставим</h2>
   <select onchange="wallTarget=this.value;rWall()">
@@ -459,12 +463,13 @@ async function findCity() {
   const q = $('#cityQ').value.trim(); if (!q) return;
   try {
     const list = await api('/api/city?q=' + encodeURIComponent(q));
-    $('#cities').innerHTML = list.length ? list.map((p, i) => `<div class="row"><div class="grow">${esc(p.name)}<div class="hint">${esc(p.region)}</div></div><button class="btn small" onclick='setCity(${JSON.stringify(p)})'>Выбрать</button></div>`).join('') : '<div class="hint">Не нашёл</div>';
+    CITIES = list;
+    $('#cities').innerHTML = list.length ? list.map((p, i) => `<div class="row"><div class="grow">${esc(p.name)}<div class="hint">${esc(p.region)}</div></div><button class="btn small" onclick="setCity(CITIES[${i}])">Выбрать</button></div>`).join('') : '<div class="hint">Не нашёл</div>';
   } catch (e) { toast(e.message); }
 }
 function setCity(p) { C.weatherCity = p.name; C.weatherLat = p.lat; C.weatherLon = p.lon; touch(); rSet(); toast('Город: ' + p.name + ' — сохраните'); }
 function backup() {
-  const c = { ...C }; delete c.yandexWeatherKey;
+  const c = { ...C }; delete c.yandexWeatherKey; delete c.webPin;
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(c, null, 2)], { type: 'application/json' }));
   a.download = 'pixeltv-backup.json'; a.click();
 }

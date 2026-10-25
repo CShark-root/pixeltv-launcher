@@ -31,7 +31,7 @@
 
     <application
         android:name=".PixelDenApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:banner="@drawable/banner"
         android:icon="@drawable/banner"
         android:label="PixelTv"

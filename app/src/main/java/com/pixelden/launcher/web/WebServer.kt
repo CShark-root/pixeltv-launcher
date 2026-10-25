@@ -60,6 +60,9 @@ class WebServer(private val app: PixelDenApp) {
     private val pool = Executors.newFixedThreadPool(4)
     /** Неудачные попытки PIN по адресам: число ошибок и до какого времени вход закрыт. */
     private val fails = java.util.concurrent.ConcurrentHashMap<String, Pair<Int, Long>>()
+    /** Ошибки со всех адресов вместе: подбор с многих адресов сети упрётся в общий предел. */
+    private val allFails = java.util.concurrent.atomic.AtomicInteger()
+    @Volatile private var allLockedUntil = 0L
 
     val running get() = server?.isClosed == false
 
@@ -175,15 +178,20 @@ class WebServer(private val app: PixelDenApp) {
         // Подбор PIN: после 10 ошибок с одного адреса — пауза 5 минут (4 цифры иначе перебираются за минуты).
         val now = System.currentTimeMillis()
         val lock = fails[req.ip]
-        if (lock != null && lock.second > now) {
+        if (lock != null && lock.second > now || allLockedUntil > now) {
             json(out, 429, buildJsonObject { put("error", tr("Слишком много неверных PIN. Подождите 5 минут.")) })
             return
         }
         val pin = req.headers["x-pin"] ?: req.query["pin"]
-        if (pin != cfg.webPin) {
+        // Сравнение за одинаковое время, чтобы PIN нельзя было угадывать по скорости ответа.
+        if (pin == null || !java.security.MessageDigest.isEqual(pin.toByteArray(), cfg.webPin.toByteArray())) {
             val n = (lock?.first ?: 0) + 1
             fails[req.ip] = if (n >= 10) 0 to now + 5 * 60_000L else n to 0L
             if (n >= 10) DebugLog.e("веб-панель: подбор PIN с ${req.ip}, вход закрыт на 5 минут")
+            if (allFails.incrementAndGet() >= 30) {
+                allFails.set(0); allLockedUntil = now + 5 * 60_000L
+                DebugLog.e("веб-панель: много неверных PIN с разных адресов, вход закрыт на 5 минут")
+            }
             json(out, 401, buildJsonObject { put("error", tr("Неверный PIN. Он показан на ТВ: Настройки → С телефона")) })
             return
         }
@@ -210,7 +218,7 @@ class WebServer(private val app: PixelDenApp) {
                 send(out, 200, "image/jpeg", bytes, cache = true)
             }
             "POST /api/wallpaper" -> {
-                val name = req.query["name"].orEmpty().substringAfterLast('/').replace(Regex("[^\\w.\\-]"), "_").ifBlank { "wallpaper.jpg" }
+                val name = req.query["name"].orEmpty().substringAfterLast('/').replace(Regex("[^\\w.\\-]"), "_").trimStart('.').ifBlank { "wallpaper.jpg" }
                 val dir = uploadedWallpaperDir(app).apply { mkdirs() }
                 val file = File(dir, name)
                 req.saveTo(file, 40L * 1024 * 1024)
@@ -221,7 +229,7 @@ class WebServer(private val app: PixelDenApp) {
             }
             "POST /api/wallpaper/delete" -> {
                 val f = File(req.query["path"].orEmpty())
-                if (f.parentFile?.canonicalPath != uploadedWallpaperDir(app).canonicalPath) error(tr("удалять можно только загруженные обои"))
+                if (!f.isFile || f.canonicalFile.parentFile?.canonicalPath != uploadedWallpaperDir(app).canonicalPath) error(tr("удалять можно только загруженные обои"))
                 f.delete()
                 app.store.update { c ->
                     c.copy(

@@ -69,7 +69,10 @@ object DebugLog {
             appendLine()
             appendLine("=== config")
             // Секреты в выгрузку не попадают: файл лежит в общей памяти ТВ.
-            val safe = cfg.copy(yandexWeatherKey = if (cfg.yandexWeatherKey.isBlank()) "" else "задан (${cfg.yandexWeatherKey.length} символов)")
+            val safe = cfg.copy(
+                yandexWeatherKey = if (cfg.yandexWeatherKey.isBlank()) "" else "задан (${cfg.yandexWeatherKey.length} символов)",
+                webPin = "скрыт",
+            )
             appendLine(ConfigStore.json.encodeToString(LauncherConfig.serializer(), safe))
         })
         return out

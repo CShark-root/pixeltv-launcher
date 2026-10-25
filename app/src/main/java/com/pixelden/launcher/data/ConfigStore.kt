@@ -51,12 +51,21 @@ class ConfigStore(private val context: Context) {
     fun exportBackup(): Result<File> = runCatching {
         val out = exportFile()
         out.parentFile?.mkdirs()
-        out.writeText(json.encodeToString(LauncherConfig.serializer(), current))
+        // Файл лежит в общей памяти, его читает любое приложение — PIN и ключ погоды в него не пишем.
+        out.writeText(json.encodeToString(LauncherConfig.serializer(), current.copy(webPin = "", yandexWeatherKey = "")))
         out
     }
 
     fun importBackup(): Result<Unit> = runCatching {
-        val cfg = json.decodeFromString(LauncherConfig.serializer(), exportFile().readText())
+        // Файл мог подложить кто угодно: секреты оставляем свои, список отключённого — только из имён пакетов.
+        val old = current
+        val cfg = json.decodeFromString(LauncherConfig.serializer(), exportFile().readText()).let {
+            it.copy(
+                webPin = old.webPin,
+                yandexWeatherKey = old.yandexWeatherKey,
+                cleanupDisabled = it.cleanupDisabled.filter(com.pixelden.launcher.system.TvCleanup::isPackageName),
+            )
+        }
         _config.value = cfg
         save(cfg)
     }

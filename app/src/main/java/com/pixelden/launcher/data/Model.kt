@@ -112,7 +112,7 @@ data class LauncherConfig(
 )
 
 object Defaults {
-    const val VERSION = 8
+    const val VERSION = 9
 
     /** Пустышки обязательной предустановки и системные пакеты, которым не место на главном экране. */
     val JUNK = listOf(
@@ -139,10 +139,12 @@ object Defaults {
         if (c.defaultsVersion < 7 && "calendar" !in c.widgets) c = c.copy(widgets = listOf("calendar") + c.widgets)
         // v8: мастер первого запуска — только для новых установок; уже настроенным он не нужен.
         if (c.defaultsVersion in 1..7) c = c.copy(onboardingDone = true)
+        // v9: 4 цифры перебираются слишком быстро — меняем короткий PIN на 6-значный.
+        if (c.defaultsVersion < 9 && c.webPin.length < 6) c = c.copy(webPin = newPin())
         return c.copy(defaultsVersion = VERSION)
     }
 
-    fun newPin(): String = (1000 + java.security.SecureRandom().nextInt(9000)).toString()
+    fun newPin(): String = (100_000 + java.security.SecureRandom().nextInt(900_000)).toString()
 }
 
 @Serializable
