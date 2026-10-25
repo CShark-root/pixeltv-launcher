@@ -63,6 +63,7 @@ Translations live in `app/src/main/assets/i18n/<lang>.json`: the Russian phrase 
 - Picture settings on MediaTek/MStar TVs only affect the video layer, so the UI itself isn't changed by contrast/gamma; backlight changes everything.
 - Some Xiaomi firmwares reinstall preloaded apps at boot; PixelTv hides them on the home screen and the cleanup disables them.
 - Fonts: Tiny5, Handjet, Press Start 2P, Pixelify Sans, all under the SIL Open Font License (see `licenses/`).
+- QR codes: [ZXing](https://github.com/zxing/zxing) core, Apache-2.0.
 
 ## License
 

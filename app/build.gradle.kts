@@ -15,8 +15,8 @@ android {
         applicationId = "com.pixelden.launcher"
         minSdk = 28
         targetSdk = 34
-        versionCode = 17
-        versionName = "0.9.7"
+        versionCode = 18
+        versionName = "0.9.8"
         // Откуда приходят обновления (GitHub Releases).
         buildConfigField("String", "UPDATE_REPO", "\"${providers.gradleProperty("pixeltv.repo").getOrElse("")}\"")
     }
@@ -74,4 +74,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.2")
     // Ставит готовые профили компиляции Compose — меньше подлагиваний после установки.
     implementation("androidx.profileinstaller:profileinstaller:1.3.1")
+    // QR-код со ссылкой на веб-панель (Apache-2.0).
+    implementation("com.google.zxing:core:3.5.3")
 }

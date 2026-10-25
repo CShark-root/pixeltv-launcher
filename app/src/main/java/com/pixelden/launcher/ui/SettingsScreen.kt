@@ -445,14 +445,21 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 if (cfg.webPanel) {
                     item {
                         val ip = com.pixelden.launcher.web.WebServer.lanAddress()
-                        Column(
+                        val url = "http://$ip:${com.pixelden.launcher.web.WebServer.PORT}"
+                        Row(
                             Modifier.fillMaxWidth().padding(vertical = 10.dp)
                                 .pixelBox(t.colors.accent, t.colors.surface, t.border).padding(24.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                         ) {
-                            PText(tr("Откройте на телефоне:"), 16.sp, t.colors.dim)
-                            PText(if (ip != null) "http://$ip:${com.pixelden.launcher.web.WebServer.PORT}" else tr("ТВ не в сети"), 34.sp, t.colors.text, Modifier.padding(vertical = 6.dp))
-                            PText("PIN:  ${cfg.webPin}", 34.sp, t.colors.accent)
-                            PText(tr("Телефон должен быть в той же сети Wi-Fi."), 14.sp, t.colors.dim, Modifier.padding(top = 8.dp))
+                            Column(Modifier.weight(1f)) {
+                                PText(tr("Откройте на телефоне:"), 16.sp, t.colors.dim)
+                                PText(if (ip != null) url else tr("ТВ не в сети"), 34.sp, t.colors.text, Modifier.padding(vertical = 6.dp))
+                                PText("PIN:  ${cfg.webPin}", 34.sp, t.colors.accent)
+                                PText(tr("Телефон должен быть в той же сети Wi-Fi."), 14.sp, t.colors.dim, Modifier.padding(top = 8.dp))
+                                if (ip != null) PText(tr("Или наведите камеру телефона на код — PIN вводить не придётся."), 14.sp, t.colors.dim, Modifier.padding(top = 4.dp), maxLines = 2)
+                            }
+                            // В ссылке сразу PIN: панель запомнит его и уберёт из адреса.
+                            if (ip != null) QrCode("$url/?pin=${cfg.webPin}", Modifier.padding(start = 24.dp).size(200.dp))
                         }
                     }
                     item {
