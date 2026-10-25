@@ -277,6 +277,7 @@ class WebServer(private val app: PixelDenApp) {
                     addJsonObject {
                         put("pkg", a.pkg); put("name", a.name); put("desc", a.description); put("group", a.group)
                         put("installed", com.pixelden.launcher.system.AppCatalog.installed(app, a.pkg))
+                        put("update", com.pixelden.launcher.system.AppCatalog.updateAvailable(app, a) == true)
                     }
                 }
             })

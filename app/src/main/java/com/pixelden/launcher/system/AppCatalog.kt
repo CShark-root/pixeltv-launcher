@@ -80,10 +80,34 @@ object AppCatalog {
         return apks.firstOrNull { n -> allTokens.none { n.contains(it, ignoreCase = true) } } ?: apks.firstOrNull()
     }
 
-    /** Прямая ссылка на APK последней версии под этот ТВ. */
+    /** Последние версии: пакет → (версия, когда узнали). Живут 6 часов — чтобы не упереться в лимит API GitHub. */
+    private val latest = java.util.concurrent.ConcurrentHashMap<String, Pair<String, Long>>()
+
+    /** Последняя версия из кэша или с сайта; null — узнать не вышло. Блокирующий. */
+    fun latestVersion(app: App): String? {
+        latest[app.pkg]?.let { (v, at) -> if (System.currentTimeMillis() - at < 6 * 3_600_000L) return v }
+        return runCatching { resolve(app); latest[app.pkg]?.first }.getOrNull()
+    }
+
+    /** Есть ли версия новее установленной (по числам в номерах версий). null — неизвестно. */
+    fun updateAvailable(context: Context, app: App): Boolean? {
+        val installed = runCatching { context.packageManager.getPackageInfo(app.pkg, 0).versionName }.getOrNull() ?: return null
+        val newest = latestVersion(app) ?: return null
+        fun nums(v: String) = Regex("[0-9]+").findAll(v).map { it.value.toLong() }.toList()
+        val a = nums(newest); val b = nums(installed)
+        if (a.isEmpty() || b.isEmpty()) return null
+        for (i in 0 until maxOf(a.size, b.size)) {
+            val d = a.getOrElse(i) { 0 }.compareTo(b.getOrElse(i) { 0 })
+            if (d != 0) return d > 0
+        }
+        return false
+    }
+
+    /** Прямая ссылка на APK последней версии под этот ТВ (заодно запоминает номер версии). */
     fun resolve(app: App): String = when (val s = app.source) {
         is GitHub -> {
             val o = Json.parseToJsonElement(Download.text("https://api.github.com/repos/${s.repo}/releases/latest")).jsonObject
+            o["tag_name"]?.jsonPrimitive?.content?.let { latest[app.pkg] = it to System.currentTimeMillis() }
             val assets = o["assets"]!!.jsonArray.map { it.jsonObject }
             val names = assets.map { it["name"]!!.jsonPrimitive.content }
             val name = pick(names, s.skip) ?: error(tr("в релизе нет подходящего APK"))
@@ -96,6 +120,7 @@ object AppCatalog {
             // Самая новая стабильная версия из списка файлов папки.
             val best = re.findAll(Download.text(folder)).maxWithOrNull { a, b -> version(a.groupValues[1], b.groupValues[1]) }
                 ?: error(tr("не нашёл файл на сайте"))
+            latest[app.pkg] = best.groupValues[1] to System.currentTimeMillis()
             folder + best.value
         }
     }

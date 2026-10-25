@@ -37,6 +37,12 @@ fun CatalogPanel(onEnterUrl: () -> Unit) {
     val apps by PixelDenApp.instance.apps.apps.collectAsState()
     var tick by remember { mutableIntStateOf(0) }
     val installed = remember(apps, tick) { AppCatalog.APPS.filter { AppCatalog.installed(context, it.pkg) }.map { it.pkg }.toSet() }
+    // Для установленных — есть ли версия новее (сравнение с сайтом, в фоне, с кэшем на 6 часов).
+    val updates by androidx.compose.runtime.produceState(emptyMap<String, Boolean?>(), installed) {
+        value = withContext(Dispatchers.IO) {
+            AppCatalog.APPS.filter { it.pkg in installed }.associate { it.pkg to AppCatalog.updateAvailable(context, it) }
+        }
+    }
 
     fun install(app: AppCatalog.App) {
         if (app.pkg in progress) return
@@ -57,7 +63,8 @@ fun CatalogPanel(onEnterUrl: () -> Unit) {
                 val value = when {
                     p == -1 -> tr("подтвердите на ТВ")
                     p != null -> "$p%"
-                    app.pkg in installed -> tr("обновить")
+                    app.pkg in installed && updates[app.pkg] == true -> tr("обновить до {0}", AppCatalog.latestVersion(app) ?: "")
+                    app.pkg in installed -> tr("установлено")
                     else -> tr("установить")
                 }
                 SettingRow(app.name, value, hint = app.description) { install(app) }

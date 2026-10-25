@@ -519,7 +519,7 @@ async function loadCatalog() {
     const groups = { video: T('Видео'), games: T('Игры'), tools: T('Полезное') };
     box.innerHTML = Object.entries(groups).map(([g, title]) => `<div class="hint" style="margin-top:6px">${title}</div>` + list.filter(a => a.group === g).map(a => `
       <div class="row"><div class="grow">${esc(a.name)}<div class="hint">${esc(a.desc)}</div></div>
-      <button class="btn small" onclick="catInstall('${a.pkg}', this)">${a.installed ? T('Обновить') : T('Установить')}</button></div>`).join('')).join('');
+      <button class="btn small" ${a.installed && !a.update ? 'disabled' : ''} onclick="catInstall('${a.pkg}', this)">${a.update ? T('Обновить') : a.installed ? T('Установлено') : T('Установить')}</button></div>`).join('')).join('');
   } catch (e) { box.textContent = e.message; }
 }
 async function catInstall(pkg, b) {
