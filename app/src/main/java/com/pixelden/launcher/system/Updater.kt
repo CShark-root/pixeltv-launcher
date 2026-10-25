@@ -102,35 +102,7 @@ object Updater {
         val ok = withContext(Dispatchers.IO) {
             runCatching {
                 val file = File(context.cacheDir, "update.apk")
-                var url = URL(rel.apkUrl)
-                // GitHub отдаёт файл через редирект на другой хост — проходим его вручную.
-                var c: HttpURLConnection
-                var hops = 0
-                while (true) {
-                    c = url.openConnection() as HttpURLConnection
-                    c.instanceFollowRedirects = false
-                    c.connectTimeout = 15_000
-                    c.readTimeout = 30_000
-                    c.setRequestProperty("User-Agent", "PixelTv/${BuildConfig.VERSION_NAME}")
-                    val code = c.responseCode
-                    if (code in 300..399 && hops++ < 5) { url = URL(c.getHeaderField("Location")); c.disconnect(); continue }
-                    if (code != 200) error(tr("скачивание: HTTP {0}", code))
-                    break
-                }
-                val total = c.contentLengthLong.takeIf { it > 0 } ?: rel.size
-                c.inputStream.use { input ->
-                    file.outputStream().use { out ->
-                        val buf = ByteArray(64 * 1024)
-                        var done = 0L
-                        while (true) {
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            out.write(buf, 0, n); done += n
-                            if (total > 0) _state.value = State.Downloading((done * 100 / total).toInt())
-                        }
-                    }
-                }
-                c.disconnect()
+                Download.toFile(rel.apkUrl, file) { _state.value = State.Downloading(it) }
                 ApkInstaller.install(context, file)
             }
         }

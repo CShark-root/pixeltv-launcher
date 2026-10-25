@@ -12,6 +12,7 @@ import com.pixelden.launcher.scenario.DebugLog
 import com.pixelden.launcher.scenario.DenAccessibilityService
 import com.pixelden.launcher.scenario.Scheduler
 import com.pixelden.launcher.system.Health
+import com.pixelden.launcher.system.trimSelf
 import com.pixelden.launcher.system.SleepTimer
 import com.pixelden.launcher.ui.FONTS
 import com.pixelden.launcher.ui.FOCUS_EFFECTS
@@ -268,7 +269,28 @@ class WebServer(private val app: PixelDenApp) {
             "POST /api/free" -> {
                 val pkgs = app.apps.apps.value.map { it.pkg } + Health.recentApps(app).map { it.pkg }
                 val freed = Health.freeMemory(app, pkgs.toSet())
-                json(out, 200, buildJsonObject { put("freedMb", freed / 1_048_576) })
+                val self = Health.trimSelf(app)
+                json(out, 200, buildJsonObject { put("freedMb", freed / 1_048_576); put("selfMb", self / 1_048_576) })
+            }
+            "GET /api/catalog" -> json(out, 200, buildJsonArray {
+                com.pixelden.launcher.system.AppCatalog.APPS.forEach { a ->
+                    addJsonObject {
+                        put("pkg", a.pkg); put("name", a.name); put("desc", a.description); put("group", a.group)
+                        put("installed", com.pixelden.launcher.system.AppCatalog.installed(app, a.pkg))
+                    }
+                }
+            })
+            "POST /api/catalog/install" -> {
+                val a = com.pixelden.launcher.system.AppCatalog.APPS.firstOrNull { it.pkg == req.query["pkg"] } ?: error(tr("нет такого приложения"))
+                // Скачивание может идти минуту — отвечаем сразу, ставим в фоне.
+                app.scope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { com.pixelden.launcher.system.AppCatalog.install(app, a) }.onFailure { DebugLog.e("каталог: ${a.name}", it) } }
+                json(out, 200, buildJsonObject { put("ok", true) })
+            }
+            "POST /api/install-url" -> {
+                val url = req.text(4096).trim()
+                if (!url.startsWith("http")) error(tr("нужна ссылка http(s)"))
+                app.scope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { com.pixelden.launcher.system.AppCatalog.installUrl(app, url) }.onFailure { DebugLog.e("установка по ссылке", it) } }
+                json(out, 200, buildJsonObject { put("ok", true) })
             }
             "POST /api/apk" -> {
                 val file = File(app.cacheDir, "update.apk")

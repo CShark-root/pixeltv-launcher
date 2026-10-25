@@ -139,8 +139,24 @@ object MemoryGuard {
         if ((freePct >= 15 && !s.lowMemory) || System.currentTimeMillis() - lastRun < 10 * 60_000L) return
         lastRun = System.currentTimeMillis()
         val pkgs = app.apps.apps.value.map { it.pkg } + Health.recentApps(app).map { it.pkg }
-        val freed = Health.freeMemory(app, pkgs.toSet())
+        val freed = Health.freeMemory(app, pkgs.toSet()) + Health.trimSelf(app)
         DebugLog.i("сторож памяти: свободно было $freePct%, закрыл фон — освобождено ${mb(freed)} МБ")
         if (freed > 30L * 1_048_576) app.engine.notify(tr("Прибрался в памяти: +{0} МБ", (mb(freed))))
     }
+}
+
+/** Подчистить память самого лаунчера: кэш иконок, спрайты других маскотов, сборка мусора. Возвращает освобождённое. */
+fun Health.trimSelf(context: Context): Long {
+    val app = com.pixelden.launcher.PixelDenApp.instance
+    val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+    fun pss() = runCatching { am.getProcessMemoryInfo(intArrayOf(android.os.Process.myPid()))[0].totalPss * 1024L }.getOrDefault(0L)
+    val before = pss()
+    app.apps.trimImages()
+    com.pixelden.launcher.ui.SheetCache.keepOnly(app.store.current.mascot)
+    System.gc()
+    Runtime.getRuntime().runFinalization()
+    Thread.sleep(400)
+    val freed = (before - pss()).coerceAtLeast(0)
+    DebugLog.i("лаунчер подчистил себя: ${mb(freed)} МБ")
+    return freed
 }

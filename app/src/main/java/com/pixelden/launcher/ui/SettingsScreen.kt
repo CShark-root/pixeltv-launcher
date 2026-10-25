@@ -89,6 +89,7 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
     var cityEdit by remember { mutableStateOf(false) }
     var keyEdit by remember { mutableStateOf(false) }
     var newsUrlEdit by remember { mutableStateOf(false) }
+    var apkUrlEdit by remember { mutableStateOf(false) }
     var cityResults by remember { mutableStateOf<List<com.pixelden.launcher.weather.Place>>(emptyList()) }
     val pageScope = androidx.compose.runtime.rememberCoroutineScope()
     fun refreshWeather() { pageScope.launch { app.weather.refresh() } }
@@ -488,6 +489,10 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 item { HealthPanel() }
             }
 
+            if (page == "catalog") {
+                item { CatalogPanel(onEnterUrl = { apkUrlEdit = true }) }
+            }
+
             if (page == "cleanup") {
                 item { CleanupPanel(cfg) }
             }
@@ -563,6 +568,15 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                     SettingRow(p.name, hint = p.region, focusRequester = if (i == 0) rememberAutoFocus() else null) {
                         pickCity(p); cityResults = emptyList()
                     }
+                }
+            }
+        }
+        if (apkUrlEdit) {
+            TextEditOverlay(tr("Ссылка на APK"), "https://", onDismiss = { apkUrlEdit = false }) { u ->
+                apkUrlEdit = false
+                if (u.startsWith("http")) pageScope.launch {
+                    val err = withContext(Dispatchers.IO) { runCatching { com.pixelden.launcher.system.AppCatalog.installUrl(context, u.trim()) }.exceptionOrNull() }
+                    if (err != null) toast(context, tr("Не вышло: {0}", err.message ?: err.javaClass.simpleName))
                 }
             }
         }

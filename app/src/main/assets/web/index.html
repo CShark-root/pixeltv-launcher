@@ -497,13 +497,36 @@ async function rTv() {
   <h2>Недавно открытые</h2>
   <div class="card">${!h.usageAccess ? '<div class="hint">Нужен доступ: adb shell appops set com.pixelden.launcher GET_USAGE_STATS allow</div>' :
     h.recent.map(r => `<div class="row app">${icon(r.pkg)}<div class="grow">${esc(r.label)}<div class="hint">${ago(r.lastUsed)} · на экране ${Math.round(r.fgMs / 60000)} мин</div></div></div>`).join('') || '<div class="hint">Пусто</div>'}</div>
-  <h2>Обновить PixelTv</h2>
-  <div class="card"><p class="hint">Выберите APK — на ТВ появится окно подтверждения установки. Подойдёт и любое другое приложение.</p>
-    <input type="file" accept=".apk,application/vnd.android.package-archive" onchange="sendApk(this.files[0])"><div class="hint" id="apkState"></div></div>
+  <h2>Установить приложение</h2>
+  <div class="card"><p class="hint">Файл .apk с телефона или компьютера, либо прямая ссылка на .apk. На ТВ появится окно подтверждения — нажмите «Установить» пультом.</p>
+    <input type="file" accept=".apk,application/vnd.android.package-archive" onchange="sendApk(this.files[0])">
+    <div class="row" style="margin-top:8px"><input type="text" id="apkUrl" placeholder="https://…/app.apk"><button class="btn" onclick="installUrl()">Скачать на ТВ</button></div>
+    <div class="hint" id="apkState"></div></div>
+  <h2>Каталог</h2>
+  <div class="card" id="catalog"><span class="hint">Загружаю…</span></div>
   <h2>Журнал</h2>
   <div class="card"><button class="btn small" onclick="showLog()">Показать журнал</button><pre id="log" style="display:none"></pre></div>`;
+  loadCatalog();
 }
-async function freeMem(b) { b.disabled = true; b.textContent = 'Освобождаю…'; try { const r = await api('/api/free', { method: 'POST' }); toast('Освобождено ' + r.freedMb + ' МБ'); } catch (e) { toast(e.message); } rTv(); }
+async function installUrl() {
+  const u = $('#apkUrl').value.trim(); if (!u.startsWith('http')) return toast(T('Нужна ссылка http(s)'));
+  try { await api('/api/install-url', { method: 'POST', body: u }); $('#apkState').textContent = T('ТВ скачивает файл — потом подтвердите установку пультом.'); } catch (e) { toast(e.message); }
+}
+async function loadCatalog() {
+  const box = $('#catalog'); if (!box) return;
+  try {
+    const list = await api('/api/catalog');
+    const groups = { video: T('Видео'), games: T('Игры'), tools: T('Полезное') };
+    box.innerHTML = Object.entries(groups).map(([g, title]) => `<div class="hint" style="margin-top:6px">${title}</div>` + list.filter(a => a.group === g).map(a => `
+      <div class="row"><div class="grow">${esc(a.name)}<div class="hint">${esc(a.desc)}</div></div>
+      <button class="btn small" onclick="catInstall('${a.pkg}', this)">${a.installed ? T('Обновить') : T('Установить')}</button></div>`).join('')).join('');
+  } catch (e) { box.textContent = e.message; }
+}
+async function catInstall(pkg, b) {
+  b.disabled = true; b.textContent = T('Скачиваю…');
+  try { await api('/api/catalog/install?pkg=' + encodeURIComponent(pkg), { method: 'POST' }); toast(T('ТВ скачивает приложение — потом подтвердите установку пультом.')); } catch (e) { toast(e.message); b.disabled = false; }
+}
+async function freeMem(b) { b.disabled = true; b.textContent = 'Освобождаю…'; try { const r = await api('/api/free', { method: 'POST' }); toast(T('Фоновые приложения') + ': ' + r.freedMb + ' · PixelTv: ' + r.selfMb + ' МБ'); } catch (e) { toast(e.message); } rTv(); }
 async function sendApk(f) {
   if (!f) return;
   $('#apkState').textContent = 'Отправляю ' + (f.size / 1048576).toFixed(1) + ' МБ…';

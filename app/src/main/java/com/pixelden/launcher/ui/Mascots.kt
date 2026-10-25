@@ -69,13 +69,16 @@ enum class MascotMood { IDLE, SLEEP }
  * [left] — первая видимая колонка спрайта (без свечения), [headY] — строка на уровне глаз.
  * Считаются по кадру sit0 при загрузке, чтобы реплика вставала рядом с любым маскотом.
  */
-private class Sheet(val image: ImageBitmap, val fw: Int, val fh: Int, val index: Map<String, Int>, val left: Int, val right: Int, val top: Int, val headY: Int)
+internal class Sheet(val image: ImageBitmap, val fw: Int, val fh: Int, val index: Map<String, Int>, val left: Int, val right: Int, val top: Int, val headY: Int)
 
-private object SheetCache {
+internal object SheetCache {
     private val sheets = HashMap<String, Sheet>()
     private var meta: Pair<IntSize, List<String>>? = null
 
-    fun get(context: Context, id: String): Sheet = sheets.getOrPut(id) {
+    /** Выгрузить спрайты всех маскотов, кроме [id] (для «Освободить память»). */
+    @Synchronized fun keepOnly(id: String) { sheets.keys.retainAll(setOf(id)) }
+
+    @Synchronized fun get(context: Context, id: String): Sheet = sheets.getOrPut(id) {
         val (size, names) = meta ?: context.assets.open("mascots/frames.txt").bufferedReader().use { r ->
             val (w, h) = r.readLine().trim().split(" ").map { it.toInt() }
             IntSize(w, h) to r.readLine().trim().split(" ")

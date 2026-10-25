@@ -29,6 +29,7 @@ import com.pixelden.launcher.system.HealthSnapshot
 import com.pixelden.launcher.system.RecentApp
 import com.pixelden.launcher.system.gb
 import com.pixelden.launcher.system.mb
+import com.pixelden.launcher.system.trimSelf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -79,8 +80,10 @@ fun HealthPanel() {
             scope.launch {
                 val pkgs = app.apps.apps.value.map { it.pkg } + recent.map { it.pkg }
                 val freed = withContext(Dispatchers.IO) { Health.freeMemory(context, pkgs.toSet()) }
+                // Сам лаунчер на экране — его система не закроет, но свои кэши он чистит сам.
+                val self = withContext(Dispatchers.IO) { Health.trimSelf(context) }
                 busy = false
-                val text = if (freed > 8 * 1_048_576) tr("Освободил {0} МБ!", (mb(freed))) else tr("Фон и так чистый.")
+                val text = tr("Фоновые приложения: {0} МБ · PixelTv: {1} МБ", mb(freed), mb(self))
                 app.engine.notify(text)
                 Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
                 refresh++

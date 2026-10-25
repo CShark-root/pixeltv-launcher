@@ -138,6 +138,11 @@ class DebugReceiver : BroadcastReceiver() {
                 if (r.isSuccess) app.scope.launch { kotlinx.coroutines.delay(500); android.os.Process.killProcess(android.os.Process.myPid()) }
             }
             "com.pixelden.launcher.ONBOARD" -> app.store.update { it.copy(onboardingDone = false, onboardingStep = 0) }
+            "com.pixelden.launcher.CATALOG" -> app.scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                for (a in com.pixelden.launcher.system.AppCatalog.APPS) {
+                    DebugLog.i("каталог ${a.name}: " + runCatching { com.pixelden.launcher.system.AppCatalog.resolve(a) }.getOrElse { "ошибка ${it.message}" })
+                }
+            }
             "com.pixelden.launcher.KEYLOG" -> {
                 DebugLog.logKeys = intent.getBooleanExtra("on", true)
                 DebugLog.i("журнал кнопок: ${if (DebugLog.logKeys) "вкл" else "выкл"}")

@@ -96,6 +96,7 @@
                 <action android:name="com.pixelden.launcher.BACKUP" />
                 <action android:name="com.pixelden.launcher.RESTORE" />
                 <action android:name="com.pixelden.launcher.ONBOARD" />
+                <action android:name="com.pixelden.launcher.CATALOG" />
             </intent-filter>
         </receiver>
 
