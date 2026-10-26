@@ -273,9 +273,18 @@ object UpEgg {
  * ниже — последние уведомления (OK — открыть, ← → — убрать). BACK или «вниз» с последней строки — закрыть.
  */
 @Composable
-fun NoticeShade() {
+fun NoticeShade(onOpenCatalog: () -> Unit) {
     val t = LocalDen.current
     val context = LocalContext.current
+    val upd by com.pixelden.launcher.system.Updater.state.collectAsState()
+    val appUpdates by com.pixelden.launcher.system.AppCatalog.updates.collectAsState()
+    // Обновления: PixelTv и приложения каталога. Проверяем не чаще раза в сутки, в фоне.
+    LaunchedEffect(Unit) {
+        withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.pixelden.launcher.system.Updater.checkIfStale() }
+            runCatching { com.pixelden.launcher.system.AppCatalog.refreshUpdates(context) }
+        }
+    }
     val net by com.pixelden.launcher.system.NetStatus.state.collectAsState()
     val notices by com.pixelden.launcher.system.Notices.items.collectAsState()
     val listening by com.pixelden.launcher.system.Notices.connected.collectAsState()
@@ -311,20 +320,25 @@ fun NoticeShade() {
                 .background(t.colors.bg.copy(alpha = 0.96f))
                 .padding(start = 56.dp, end = 56.dp, top = 24.dp, bottom = 18.dp),
         ) {
-            val netText = when (net.kind) {
-                com.pixelden.launcher.system.NetState.Kind.WIFI -> "Wi-Fi"
-                com.pixelden.launcher.system.NetState.Kind.ETHERNET -> tr("Кабель")
-                com.pixelden.launcher.system.NetState.Kind.NONE -> tr("Нет подключения")
-            } + when {
-                net.kind == com.pixelden.launcher.system.NetState.Kind.NONE -> ""
-                net.online -> tr(" · интернет есть")
-                else -> tr(" · без интернета")
-            }
-            ShadeRow(if (net.online) ICON_NET else ICON_OFF, netText, null, first) {
+            NetCard(net, first) {
                 val action = if (net.kind == com.pixelden.launcher.system.NetState.Kind.ETHERNET) android.provider.Settings.ACTION_SETTINGS else android.provider.Settings.ACTION_WIFI_SETTINGS
                 close(); runCatching { context.startActivity(android.content.Intent(action).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
             }
-            Spacer(Modifier.height(6.dp))
+            val hasUpdates = upd is com.pixelden.launcher.system.Updater.State.Available || upd is com.pixelden.launcher.system.Updater.State.Downloading || appUpdates.isNotEmpty()
+            if (hasUpdates) ShadeSection(tr("Обновления"))
+            when (val s = upd) {
+                is com.pixelden.launcher.system.Updater.State.Available ->
+                    ShadeRow(ICON_UPD, tr("Вышла PixelTv {0} — OK, обновить", s.release.version), null, null) {
+                        scope.launch { com.pixelden.launcher.system.Updater.install(context, s.release) }
+                    }
+                is com.pixelden.launcher.system.Updater.State.Downloading ->
+                    ShadeRow(ICON_UPD, tr("PixelTv: скачиваю обновление… {0}%", s.percent), null, null) {}
+                else -> {}
+            }
+            if (appUpdates.isNotEmpty()) ShadeRow(ICON_UPD, tr("Обновления приложений: {0} — OK, каталог", appUpdates.joinToString { it.name }), null, null) {
+                close(); onOpenCatalog()
+            }
+            ShadeSection(tr("Уведомления") + if (notices.isNotEmpty()) " · ${notices.size}" else "")
             if (noAccess) ShadeRow(ICON_BELL, if (loading) tr("Ответьте на ТВ «Разрешить»…") else tr("Разрешить показывать уведомления — OK, ТВ один раз спросит доступ к отладке"), null, null) {
                 if (loading) return@ShadeRow
                 loading = true
@@ -336,20 +350,22 @@ fun NoticeShade() {
             when {
                 loading && notices.isEmpty() -> PText(tr("Загружаю уведомления…"), 15.sp, t.colors.dim, Modifier.padding(8.dp))
                 notices.isEmpty() && !noAccess -> PText(tr("Уведомлений нет"), 15.sp, t.colors.dim, Modifier.padding(8.dp))
-                else -> notices.take(6).forEachIndexed { i, n ->
+                else -> notices.take(6).forEach { n ->
                     val app = com.pixelden.launcher.system.label(context, n.pkg)
                     val line = listOf(n.title, n.text).filter { it.isNotBlank() }.joinToString(" — ")
                     val ago = if (n.time <= 0) null else ((System.currentTimeMillis() - n.time) / 60_000).let { m ->
                         if (m < 1) tr("сейчас") else if (m < 60) tr("{0} мин", m) else tr("{0} ч", m / 60)
                     }
                     ShadeRow(ICON_BELL, "$app · $line", ago, null,
-                        onSide = if (listening && n.clearable) ({ com.pixelden.launcher.system.Notices.dismiss(n) }) else null,
-                        onDownAtEnd = if (i == minOf(notices.size, 6) - 1) close else null,
+                        onSide = { com.pixelden.launcher.system.Notices.dismiss(n) },
                     ) { close(); com.pixelden.launcher.system.Notices.open(context, n) }
                 }
             }
+            if (notices.isNotEmpty()) ShadeRow(ICON_CLEAR, tr("Убрать все уведомления"), null, null, onDownAtEnd = close) {
+                com.pixelden.launcher.system.Notices.clearAll()
+            }
             PText(
-                if (listening) tr("OK — открыть · ← → — убрать · BACK — закрыть") else tr("OK — открыть · BACK — закрыть"),
+                tr("OK — открыть · ← → — убрать · BACK — закрыть"),
                 12.sp, t.colors.dim, Modifier.padding(start = 8.dp, top = 8.dp),
             )
         }
@@ -357,6 +373,8 @@ fun NoticeShade() {
 }
 
 private val ICON_BELL = listOf("....#....", "...###...", "..#####..", "..#####..", "..#####..", ".#######.", "#########", ".........", "....#....")
+private val ICON_UPD = listOf("....#....", "....#....", "....#....", "..#.#.#..", "...###...", "....#....", "#.......#", "#.......#", "#########")
+private val ICON_CLEAR = listOf(".........", "..#####..", "#########", ".#.....#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.....#.", "..#####..")
 private val ICON_OFF = listOf("#.......#", ".#.....#.", "..#...#..", "...#.#...", "....#....", "...#.#...", "..#...#..", ".#.....#.", "#.......#")
 
 /** Строка шторки: значок, текст в одну строку, справа — время. */
@@ -466,4 +484,94 @@ fun RatesChooser(cfg: LauncherConfig) {
         }
         item { SettingRow(tr("Готово"), onClick = { WidgetDialogs.rates = false }) }
     }
+}
+
+private val NET_OK = Color(0xFF6FCF7F)
+private val NET_WARN = Color(0xFFFFC857)
+private val NET_BAD = Color(0xFFE5604D)
+private val ICON_WIFI_BIG = listOf(".........", ".#######.", "#.......#", "..#####..", ".#.....#.", "...###...", "..#...#..", "....#....", ".........")
+private val ICON_ETH_BIG = listOf("..#####..", "..#+#+#..", "..#####..", "..#####..", "...###...", "....#....", "....#....", "....#....", "....#....")
+
+/**
+ * Карточка подключения вверху шторки: крупный значок, тип (Wi-Fi / кабель), цветная метка «есть интернет»,
+ * адрес ТВ в сети, сила Wi-Fi и трафик за сегодня. OK — настройки сети.
+ */
+@Composable
+private fun NetCard(net: com.pixelden.launcher.system.NetState, focusRequester: androidx.compose.ui.focus.FocusRequester, onClick: () -> Unit) {
+    val t = LocalDen.current
+    val context = LocalContext.current
+    var focused by remember { mutableStateOf(false) }
+    val kind = net.kind
+    val color = when {
+        kind == com.pixelden.launcher.system.NetState.Kind.NONE -> NET_BAD
+        net.online -> NET_OK
+        else -> NET_WARN
+    }
+    val details by produceState("", net) {
+        value = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val ip = com.pixelden.launcher.web.WebServer.lanAddress()
+            val (rx, tx) = com.pixelden.launcher.system.NetToday.bytes(context)
+            listOfNotNull(
+                ip?.takeIf { kind != com.pixelden.launcher.system.NetState.Kind.NONE },
+                if (rx >= 0) tr("сегодня ↓ {0} ↑ {1}", size(rx), size(tx)) else null,
+            ).joinToString("   ")
+        }
+    }
+    // Сила Wi-Fi: 0..4 полоски.
+    val bars = remember(net) {
+        if (kind != com.pixelden.launcher.system.NetState.Kind.WIFI) -1 else runCatching {
+            val wm = context.applicationContext.getSystemService(android.net.wifi.WifiManager::class.java)
+            @Suppress("DEPRECATION") android.net.wifi.WifiManager.calculateSignalLevel(wm.connectionInfo.rssi, 5)
+        }.getOrDefault(-1)
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .focusRequester(focusRequester)
+            .tvClickable(onFocus = { focused = it }, onClick = onClick)
+            .pixelBox(if (focused) t.colors.accent else color.copy(alpha = 0.55f), t.colors.surface, t.border)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PixelIcon(
+            when (kind) {
+                com.pixelden.launcher.system.NetState.Kind.ETHERNET -> ICON_ETH_BIG
+                com.pixelden.launcher.system.NetState.Kind.WIFI -> ICON_WIFI_BIG
+                com.pixelden.launcher.system.NetState.Kind.NONE -> ICON_OFF
+            },
+            5, color, t.colors.surfaceHi,
+        )
+        Column(Modifier.weight(1f).padding(start = 18.dp)) {
+            PText(
+                when (kind) {
+                    com.pixelden.launcher.system.NetState.Kind.WIFI -> "Wi-Fi"
+                    com.pixelden.launcher.system.NetState.Kind.ETHERNET -> tr("Кабель")
+                    com.pixelden.launcher.system.NetState.Kind.NONE -> tr("Нет подключения")
+                },
+                24.sp, t.colors.text,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                Box(Modifier.size(10.dp).background(color))
+                PText(
+                    when {
+                        kind == com.pixelden.launcher.system.NetState.Kind.NONE -> tr("сеть не подключена")
+                        net.online -> tr("интернет есть")
+                        else -> tr("без интернета")
+                    },
+                    15.sp, color, Modifier.padding(start = 8.dp),
+                )
+                if (details.isNotBlank()) PText(details, 14.sp, t.colors.dim, Modifier.padding(start = 16.dp), maxLines = 1)
+            }
+        }
+        if (bars >= 0) Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            for (i in 1..4) Box(Modifier.size(width = 6.dp, height = (6 + i * 5).dp).background(if (i <= bars) color else t.colors.surfaceHi))
+        }
+        PText(tr("OK — настройки сети"), 13.sp, if (focused) t.colors.text else t.colors.dim, Modifier.padding(start = 18.dp))
+    }
+}
+
+/** Подпись раздела в шторке. */
+@Composable
+private fun ShadeSection(text: String) {
+    PText(text, 14.sp, LocalDen.current.colors.dim, Modifier.padding(start = 8.dp, top = 14.dp, bottom = 4.dp))
 }

@@ -814,5 +814,16 @@
 "выход из ожидания": "wake from standby",
 "при выходе из ожидания, через {0} с": "on wake from standby, after {0} s",
 "сейчас": "now",
-"Чтобы работали кнопки пульта, сценарии, подсветка, чистка, уведомления и «Продолжить просмотр», PixelTv нужны права. Он выдаст их себе сам через отладку ТВ — компьютер не нужен.": "Remote buttons, scenarios, backlight, cleanup, notifications and Continue watching need permissions. PixelTv grants them to itself via TV debugging — no computer needed."
+"Чтобы работали кнопки пульта, сценарии, подсветка, чистка, уведомления и «Продолжить просмотр», PixelTv нужны права. Он выдаст их себе сам через отладку ТВ — компьютер не нужен.": "Remote buttons, scenarios, backlight, cleanup, notifications and Continue watching need permissions. PixelTv grants them to itself via TV debugging — no computer needed.",
+"Вышла PixelTv {0} — OK, обновить": "PixelTv {0} is out — OK to update",
+"PixelTv: скачиваю обновление… {0}%": "PixelTv: downloading update… {0}%",
+"Обновления приложений: {0} — OK, каталог": "App updates: {0} — OK for the catalog",
+"Убрать все уведомления": "Clear all notifications",
+"OK — настройки сети": "OK — network settings",
+"Обновления": "Updates",
+"Уведомления": "Notifications",
+"без интернета": "no internet",
+"интернет есть": "online",
+"сегодня ↓ {0} ↑ {1}": "today ↓ {0} ↑ {1}",
+"сеть не подключена": "not connected"
 }

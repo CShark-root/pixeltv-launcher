@@ -91,6 +91,7 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenScenarios: () -> Unit,
     onOpenHealth: () -> Unit = {},
+    onOpenCatalog: () -> Unit = {},
 ) {
     val app = PixelDenApp.instance
     val context = LocalContext.current
@@ -223,7 +224,7 @@ fun HomeScreen(
         }
 
         if (WidgetDialogs.rates) RatesChooser(cfg)
-        if (WidgetDialogs.notices) NoticeShade()
+        if (WidgetDialogs.notices) NoticeShade(onOpenCatalog)
         menuFor?.let { entry ->
             AppMenu(
                 entry = entry,

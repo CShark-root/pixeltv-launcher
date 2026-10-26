@@ -80,12 +80,12 @@ object AppCatalog {
         return apks.firstOrNull { n -> allTokens.none { n.contains(it, ignoreCase = true) } } ?: apks.firstOrNull()
     }
 
-    /** Последние версии: пакет → (версия, когда узнали). Живут 6 часов — чтобы не упереться в лимит API GitHub. */
+    /** Последние версии: пакет → (версия, когда узнали). Живут сутки — чтобы не упереться в лимит API GitHub. */
     private val latest = java.util.concurrent.ConcurrentHashMap<String, Pair<String, Long>>()
 
     /** Последняя версия из кэша или с сайта; null — узнать не вышло. Блокирующий. */
     fun latestVersion(app: App): String? {
-        latest[app.pkg]?.let { (v, at) -> if (System.currentTimeMillis() - at < 6 * 3_600_000L) return v }
+        latest[app.pkg]?.let { (v, at) -> if (System.currentTimeMillis() - at < 24 * 3_600_000L) return v }
         return runCatching { resolve(app); latest[app.pkg]?.first }.getOrNull()
     }
 
@@ -101,6 +101,17 @@ object AppCatalog {
             if (d != 0) return d > 0
         }
         return false
+    }
+
+    /** Установленные приложения каталога, для которых вышла версия новее, — для шторки. */
+    private val _updates = MutableStateFlow<List<App>>(emptyList())
+    val updates: StateFlow<List<App>> = _updates
+    /**
+     * Пересчитать [updates]. Последние версии берутся из кэша на сутки, так что в сеть ходим редко,
+     * а только что обновлённое приложение пропадает из списка сразу. Блокирующий.
+     */
+    fun refreshUpdates(context: Context) {
+        _updates.value = APPS.filter { installed(context, it.pkg) && updateAvailable(context, it) == true }
     }
 
     /** Прямая ссылка на APK последней версии под этот ТВ (заодно запоминает номер версии). */

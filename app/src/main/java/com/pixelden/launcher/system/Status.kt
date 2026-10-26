@@ -105,7 +105,7 @@ object Notices {
 
     internal fun reload(active: Array<StatusBarNotification>?) {
         val own = service?.packageName
-        _items.value = active.orEmpty()
+        publish(active.orEmpty()
             .filter { sbn ->
                 val n = sbn.notification
                 // Служебное не показываем: свои, «идёт процесс», сводки групп и без текста.
@@ -122,7 +122,7 @@ object Notices {
                     text = (e.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: e.getCharSequence(Notification.EXTRA_TEXT))?.toString().orEmpty(),
                     time = sbn.postTime, intent = sbn.notification.contentIntent, clearable = sbn.isClearable,
                 )
-            }
+            })
     }
 
     /**
@@ -134,7 +134,7 @@ object Notices {
         if (service != null) return true
         val dump = runCatching { AdbClient(context).shell("dumpsys notification --noredact", timeoutMs = 10_000, ask = ask) }
             .onFailure { DebugLog.i("шторка: уведомления не прочитать — ${it.message}") }.getOrNull() ?: return false
-        _items.value = parseDump(dump, context.packageName)
+        publish(parseDump(dump, context.packageName))
         return true
     }
 
@@ -179,9 +179,36 @@ object Notices {
         if (n.clearable) dismiss(n)
     }
 
-    fun dismiss(n: Notice) { runCatching { service?.cancelNotification(n.key) } }
+    /**
+     * Убранные в шторке, но оставшиеся в системе: на ТВ без службы уведомлений чужие уведомления не удалить,
+     * их только прячем. Запоминаем «приложение|заголовок|текст»; пропавшие из системы забываем — придут снова, покажем.
+     */
+    private val hidden: MutableSet<String> by lazy {
+        prefs().getStringSet("hidden", emptySet()).orEmpty().toMutableSet()
+    }
+    private fun prefs() = com.pixelden.launcher.PixelDenApp.instance.getSharedPreferences("notices", Context.MODE_PRIVATE)
+    private fun sig(n: Notice) = "${n.pkg}|${n.title}|${n.text}"
 
-    fun clearAll() { runCatching { service?.cancelAllNotifications() } }
+    @Synchronized private fun publish(list: List<Notice>) {
+        if (hidden.retainAll(list.map(::sig).toSet())) saveHidden()
+        _items.value = list.filterNot { sig(it) in hidden }
+    }
+
+    private fun saveHidden() = prefs().edit().putStringSet("hidden", HashSet(hidden)).apply()
+
+    /** Убрать одно: удалить из системы, если можно, иначе спрятать в шторке. */
+    @Synchronized fun dismiss(n: Notice) {
+        if (service != null && n.clearable) runCatching { service?.cancelNotification(n.key) }
+        hidden += sig(n); saveHidden()
+        _items.value = _items.value - n
+    }
+
+    /** Убрать все: что можно — удалить из системы, остальное спрятать. */
+    @Synchronized fun clearAll() {
+        runCatching { service?.cancelAllNotifications() }
+        hidden += _items.value.map(::sig); saveHidden()
+        _items.value = emptyList()
+    }
 }
 
 /** Служба доступа к уведомлениям. На ТВ включается только через adb — это делает «Настроить всё». */

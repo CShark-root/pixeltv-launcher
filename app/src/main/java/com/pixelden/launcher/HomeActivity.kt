@@ -108,6 +108,7 @@ class HomeActivity : ComponentActivity() {
                                 onOpenSettings = { go(Screen.Settings()) },
                                 onOpenScenarios = { go(Screen.Scenarios) },
                                 onOpenHealth = { go(Screen.Settings("health")) },
+                                onOpenCatalog = { go(Screen.Settings("catalog")) },
                             )
                             is Screen.Settings -> SettingsScreen(
                                 cfg, s.page,

@@ -57,9 +57,20 @@ object Updater {
         }
     }
 
+    private var lastCheck = 0L
+
+    /** Для шторки: проверить, если не проверяли больше суток. */
+    suspend fun checkIfStale() {
+        val s = _state.value
+        if (s is State.Available || s is State.Downloading || s is State.Checking) return
+        if (System.currentTimeMillis() - lastCheck < 24 * 3_600_000L) return
+        check()
+    }
+
     /** Есть ли релиз новее установленного. */
     suspend fun check(): Release? {
         if (!enabled) return null
+        lastCheck = System.currentTimeMillis()
         _state.value = State.Checking
         val r = withContext(Dispatchers.IO) {
             runCatching {

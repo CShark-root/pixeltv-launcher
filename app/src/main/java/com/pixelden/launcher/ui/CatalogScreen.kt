@@ -37,10 +37,10 @@ fun CatalogPanel(onEnterUrl: () -> Unit) {
     val apps by PixelDenApp.instance.apps.apps.collectAsState()
     var tick by remember { mutableIntStateOf(0) }
     val installed = remember(apps, tick) { AppCatalog.APPS.filter { AppCatalog.installed(context, it.pkg) }.map { it.pkg }.toSet() }
-    // Для установленных — есть ли версия новее (сравнение с сайтом, в фоне, с кэшем на 6 часов).
+    // Для установленных — есть ли версия новее (сравнение с сайтом, в фоне, с кэшем на сутки).
     val updates by androidx.compose.runtime.produceState(emptyMap<String, Boolean?>(), installed) {
         value = withContext(Dispatchers.IO) {
-            AppCatalog.APPS.filter { it.pkg in installed }.associate { it.pkg to AppCatalog.updateAvailable(context, it) }
+            AppCatalog.APPS.filter { it.pkg in installed }.associate { it.pkg to AppCatalog.updateAvailable(context, it) }.also { AppCatalog.refreshUpdates(context) }
         }
     }
 
