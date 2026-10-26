@@ -26,6 +26,8 @@ object Setup {
                 "pm grant $p android.permission.WRITE_EXTERNAL_STORAGE",
                 // Android 13+: картинки для обоев читаются по отдельному праву.
                 "pm grant $p android.permission.READ_MEDIA_IMAGES",
+                // Ряд «Продолжить просмотр»: чтение системного списка Watch Next.
+                "pm grant $p android.permission.READ_TV_LISTINGS",
                 // Android 13+: «ограниченные настройки» — без этого приложению из APK не дают включить спецвозможности.
                 "appops set $p ACCESS_RESTRICTED_SETTINGS allow",
                 // Android 12+: сценарии по времени ставят точные будильники.
@@ -33,6 +35,8 @@ object Setup {
                 "appops set $p SYSTEM_ALERT_WINDOW allow",
                 "appops set $p WRITE_SETTINGS allow",
                 "appops set $p GET_USAGE_STATS allow",
+                // Шторка уведомлений в лаунчере: на ТВ доступ к уведомлениям включается только так.
+                "cmd notification allow_listener $p/$p.system.NoticeListener",
                 "appops set $p REQUEST_INSTALL_PACKAGES allow",
                 "settings put secure enabled_accessibility_services '$services'",
                 "settings put secure accessibility_enabled 1",
@@ -41,6 +45,8 @@ object Setup {
             ).joinToString("; "),
         )
         DebugLog.i("права выданы через adb ТВ")
+        // Право на «Продолжить просмотр» только что выдано — сразу читаем список.
+        com.pixelden.launcher.PixelDenApp.instance.let { if (it.store.current.showWatchNext) it.watchNext.start() }
         return tr("Готово: права выданы, PixelTv — главный экран")
     }
 }

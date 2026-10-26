@@ -31,7 +31,8 @@ data class AppEntry(
     val leanback: Boolean,
 )
 
-data class InputEntry(val id: String, val label: String, val type: Int)
+/** Вход ТВ. [port] — название самого входа («HDMI 2»), если плитка подписана именем устройства по HDMI-CEC. */
+data class InputEntry(val id: String, val label: String, val type: Int, val port: String? = null)
 
 class AppRepository(private val context: Context, private val scope: CoroutineScope) {
 
@@ -97,6 +98,15 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
                 refresh()
             }
         }, filter)
+        // Устройства по HDMI-CEC появляются и пропадают на ходу — обновляем плитки входов.
+        runCatching {
+            (context.getSystemService(Context.TV_INPUT_SERVICE) as TvInputManager).registerCallback(object : TvInputManager.TvInputCallback() {
+                override fun onInputAdded(inputId: String) = refresh()
+                override fun onInputRemoved(inputId: String) = refresh()
+                override fun onInputUpdated(inputId: String) = refresh()
+                override fun onTvInputInfoUpdated(inputInfo: TvInputInfo) = refresh()
+            }, android.os.Handler(android.os.Looper.getMainLooper()))
+        }
     }
 
     fun refresh() {
@@ -132,11 +142,22 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
 
     private fun queryInputs(): List<InputEntry> = try {
         val tim = context.getSystemService(Context.TV_INPUT_SERVICE) as TvInputManager
-        tim.tvInputList
-            .filter { it.isPassthroughInput || it.type == TvInputInfo.TYPE_TUNER }
+        val all = tim.tvInputList
+        // Устройство, назвавшее себя по HDMI-CEC («PlayStation 5»), система заводит отдельным входом
+        // с родителем — портом HDMI. Такой вход и переключает ТВ на порт с этим устройством.
+        val devices = all.filter { it.parentId != null }.groupBy { it.parentId }
+        all.filter { (it.isPassthroughInput && it.parentId == null) || it.type == TvInputInfo.TYPE_TUNER }
             .map { info ->
-                val custom = info.loadCustomLabel(context)?.toString()
-                InputEntry(info.id, custom?.takeIf { it.isNotBlank() } ?: info.loadLabel(context).toString(), info.type)
+                val custom = info.loadCustomLabel(context)?.toString()?.takeIf { it.isNotBlank() }
+                val portName = info.loadLabel(context).toString()
+                val device = devices[info.id]?.firstOrNull()
+                val deviceName = device?.loadLabel(context)?.toString()?.takeIf { it.isNotBlank() && it != portName }
+                when {
+                    // Своё имя, данное входу в настройках ТВ, важнее имени устройства.
+                    custom != null -> InputEntry(device?.id ?: info.id, custom, info.type, deviceName?.let { "$it · $portName" } ?: portName.takeIf { it != custom })
+                    deviceName != null -> InputEntry(device.id, deviceName, info.type, portName)
+                    else -> InputEntry(info.id, portName, info.type)
+                }
             }
     } catch (e: Exception) {
         emptyList()

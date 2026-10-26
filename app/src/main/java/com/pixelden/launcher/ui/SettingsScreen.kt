@@ -335,6 +335,12 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
 
             if (page == "rows") {
                 item { ToggleRow(tr("Избранное"), cfg.showFavorites) { v -> set { it.copy(showFavorites = v) } } }
+                item {
+                    ToggleRow(tr("Продолжить просмотр"), cfg.showWatchNext, tr("Фильмы и серии, на которых вы остановились, — их сами отмечают приложения")) { v ->
+                        set { it.copy(showWatchNext = v) }
+                        if (v) app.watchNext.start() else app.watchNext.stop()
+                    }
+                }
                 item { ToggleRow(tr("Входы (HDMI, ТВ)"), cfg.showInputs) { v -> set { it.copy(showInputs = v) } } }
                 item { ToggleRow(tr("Категории"), cfg.showCategories) { v -> set { it.copy(showCategories = v) } } }
                 item { ToggleRow(tr("Все приложения"), cfg.showAllApps) { v -> set { it.copy(showAllApps = v) } } }

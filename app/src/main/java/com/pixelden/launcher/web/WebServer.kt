@@ -328,6 +328,7 @@ class WebServer(private val app: PixelDenApp) {
             app.scope.launch { app.weather.refresh() }
         }
         if (next.talkNews && !old.talkNews) app.news.start()
+        if (next.showWatchNext != old.showWatchNext) { if (next.showWatchNext) app.watchNext.start() else app.watchNext.stop() }
         if (!next.talkNews && old.talkNews) app.news.stop()
         if (next.talkNews && (next.newsSource != old.newsSource || next.newsCustomUrl != old.newsCustomUrl)) app.scope.launch { app.news.refresh() }
         // Язык сменился — перезапуск процесса (подписи и списки создаются один раз).

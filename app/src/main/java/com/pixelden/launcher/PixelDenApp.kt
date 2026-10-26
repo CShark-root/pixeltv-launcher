@@ -27,6 +27,7 @@ class PixelDenApp : Application() {
     lateinit var news: com.pixelden.launcher.weather.NewsRepository
         private set
     lateinit var rates: com.pixelden.launcher.weather.RatesRepository
+    lateinit var watchNext: com.pixelden.launcher.apps.WatchNextRepository
         private set
     lateinit var web: com.pixelden.launcher.web.WebServer
         private set
@@ -39,6 +40,7 @@ class PixelDenApp : Application() {
         com.pixelden.launcher.i18n.I18n.init(this, store.current.language)
         apps = AppRepository(this, scope)
         engine = ScenarioEngine(this, store, scope)
+        watchNext = com.pixelden.launcher.apps.WatchNextRepository(this, scope).also { if (store.current.showWatchNext) it.start() }
         weather = com.pixelden.launcher.weather.WeatherRepository(store, scope).also { it.start() }
         news = com.pixelden.launcher.weather.NewsRepository(scope).also { if (store.current.talkNews) it.start() }
 
@@ -54,6 +56,18 @@ class PixelDenApp : Application() {
         }
         web = com.pixelden.launcher.web.WebServer(this).also { if (store.current.webPanel) it.start() }
         com.pixelden.launcher.system.MemoryGuard.apply(store.current.memoryGuard)
+        com.pixelden.launcher.system.NetStatus.start(this)
+        // Доступ к уведомлениям: если его ещё нет, пробуем включить тихо (без вопроса на экране).
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val nm = getSystemService(android.app.NotificationManager::class.java)
+            if (!nm.isNotificationListenerAccessGranted(com.pixelden.launcher.system.Notices.component(this@PixelDenApp))) runCatching {
+                com.pixelden.launcher.system.AdbClient(this@PixelDenApp).shell("cmd notification allow_listener $packageName/$packageName.system.NoticeListener", ask = false)
+            }
+        }
+        // Выход из ожидания: «экран включён» приходит только приёмнику, зарегистрированному из кода.
+        registerReceiver(object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context, i: android.content.Intent) = engine.onWake()
+        }, android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON))
         com.pixelden.launcher.system.Updater.apply(store.current.autoUpdate)
 
         // Контроль памяти: раз в полчаса — в журнал. Рост от записи к записи сразу покажет утечку.

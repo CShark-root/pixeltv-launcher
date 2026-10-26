@@ -56,6 +56,20 @@ class ScenarioEngine(
         }
     }
 
+    /**
+     * Экран включился (ACTION_SCREEN_ON). Сразу после загрузки он тоже включается — это уже обработал [onBoot],
+     * поэтому первые полторы минуты после старта системы пропускаем.
+     */
+    fun onWake() {
+        if (android.os.SystemClock.elapsedRealtime() < 90_000) return
+        val wake = store.current.scenarios.filter { it.enabled && it.trigger is Trigger.Wake }
+        DebugLog.i("выход из ожидания: сценариев ${wake.size}")
+        for (s in wake) scope.launch {
+            delay((s.trigger as Trigger.Wake).delaySec * 1000L)
+            run(s, tr("выход из ожидания"))
+        }
+    }
+
     fun run(s: Scenario, source: String = tr("вручную")) {
         // Запускают и из главного потока, и из веб-панели — таблицу работающих трогаем только в главном.
         if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper()) {

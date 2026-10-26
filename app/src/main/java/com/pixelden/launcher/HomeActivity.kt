@@ -67,9 +67,16 @@ class HomeActivity : ComponentActivity() {
         // Без этого права лаунчер не видит картинки для обоев и не сохраняет резервную копию.
         // Android 13+ вместо общего права на память — отдельное право на картинки.
         val storage = if (android.os.Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
-        if (checkSelfPermission(storage) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(storage, Manifest.permission.WRITE_EXTERNAL_STORAGE), 1)
+        val ask = mutableListOf<String>()
+        if (checkSelfPermission(storage) != PackageManager.PERMISSION_GRANTED) ask += listOf(storage, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        // Ряд «Продолжить просмотр» читает системный список Watch Next. Спрашиваем один раз: отказ — значит отказ.
+        val tv = com.pixelden.launcher.apps.WatchNextRepository.PERMISSION
+        // Новым установкам право выдаёт мастер настройки (вместе с остальными) — окно Android только для обновившихся.
+        if (app.store.current.onboardingDone && app.store.current.showWatchNext && !app.store.current.watchNextAsked && checkSelfPermission(tv) != PackageManager.PERMISSION_GRANTED) {
+            ask += tv
+            app.store.update { it.copy(watchNextAsked = true) }
         }
+        if (ask.isNotEmpty()) requestPermissions(ask.toTypedArray(), 1)
 
         setContent {
             val cfg by app.store.config.collectAsState()
@@ -172,6 +179,14 @@ class HomeActivity : ComponentActivity() {
             go(Screen.Home)
             homeTick++
         }
+    }
+
+    @Deprecated("Activity Result API тут не нужен: одно окно при старте")
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // Разрешили ряд «Продолжить просмотр» — сразу читаем список.
+        if (checkSelfPermission(com.pixelden.launcher.apps.WatchNextRepository.PERMISSION) == PackageManager.PERMISSION_GRANTED &&
+            PixelDenApp.instance.store.current.showWatchNext) PixelDenApp.instance.watchNext.start()
     }
 
     override fun onResume() {

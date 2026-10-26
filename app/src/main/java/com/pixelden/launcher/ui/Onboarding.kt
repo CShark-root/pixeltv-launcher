@@ -131,7 +131,7 @@ fun OnboardingScreen(cfg: LauncherConfig) {
                         }
                         STEP_PERMISSIONS -> {
                             item {
-                                PText(tr("Чтобы работали кнопки пульта, сценарии, подсветка и чистка, PixelTv нужны права. Он выдаст их себе сам через отладку ТВ — компьютер не нужен."), 17.sp, t.colors.dim, Modifier.padding(bottom = 16.dp), maxLines = 4)
+                                PText(tr("Чтобы работали кнопки пульта, сценарии, подсветка, чистка, уведомления и «Продолжить просмотр», PixelTv нужны права. Он выдаст их себе сам через отладку ТВ — компьютер не нужен."), 17.sp, t.colors.dim, Modifier.padding(bottom = 16.dp), maxLines = 4)
                             }
                             item {
                                 val ok = DenAccessibilityService.instance != null

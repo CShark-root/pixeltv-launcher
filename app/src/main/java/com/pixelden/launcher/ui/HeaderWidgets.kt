@@ -1,5 +1,13 @@
 package com.pixelden.launcher.ui
 
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.background
+import androidx.compose.animation.core.tween
 import com.pixelden.launcher.i18n.tr
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,6 +69,7 @@ const val MAX_WIDGETS = 4
 /** Окна виджетов рисуются на корне главного экрана (внутри ряда они не заняли бы весь экран). */
 object WidgetDialogs {
     var rates by mutableStateOf(false)
+    var notices by mutableStateOf(false)
 }
 
 private val ICON_CAL = listOf("#.#...#.#", "#########", "#+++++++#", "#+#+#+#+#", "#+++++++#", "#+#+#+#+#", "#+++++++#", "#########", ".........")
@@ -227,18 +236,164 @@ private fun sunTimes(lat: Double, lon: Double): Pair<java.util.Date?, java.util.
     return at(true) to at(false)
 }
 
-/** Сколько ТВ скачал и отправил с момента включения. */
+/** Сколько ТВ скачал и отправил: с момента включения или за сегодня. OK — переключить. */
 @Composable
 private fun NetTile() {
-    val value by produceState("…") {
+    val app = PixelDenApp.instance
+    val context = LocalContext.current
+    val cfg by app.store.config.collectAsState()
+    val value by produceState("…", cfg.netToday) {
         while (true) {
-            val rx = android.net.TrafficStats.getTotalRxBytes()
-            val tx = android.net.TrafficStats.getTotalTxBytes()
+            val (rx, tx) = if (cfg.netToday) com.pixelden.launcher.system.NetToday.bytes(context)
+                else android.net.TrafficStats.getTotalRxBytes() to android.net.TrafficStats.getTotalTxBytes()
             value = if (rx < 0) tr("нет данных") else "↓ ${size(rx)}   ↑ ${size(tx)}"
             delay(10_000)
         }
     }
-    WidgetTile(ICON_NET, tr("Интернет с включения ТВ"), value) {}
+    WidgetTile(ICON_NET, if (cfg.netToday) tr("Интернет за сегодня") else tr("Интернет с включения ТВ"), value) {
+        app.store.update { it.copy(netToday = !it.netToday) }
+    }
+}
+
+/** Пасхалка: пять «вверх» подряд с кнопок шапки (в том числе уже в шторке) — маскот говорит «bruh.». */
+object UpEgg {
+    var bruh by mutableStateOf(0)
+    private var presses = 0
+    private var last = 0L
+    fun press() {
+        val now = android.os.SystemClock.uptimeMillis()
+        presses = if (now - last < 1500) presses + 1 else 1
+        last = now
+        if (presses >= 5) { presses = 0; bruh++ }
+    }
+}
+
+/**
+ * Шторка: выезжает сверху по «вверх» с кнопок шапки. Первая строка — подключение (OK — настройки сети),
+ * ниже — последние уведомления (OK — открыть, ← → — убрать). BACK или «вниз» с последней строки — закрыть.
+ */
+@Composable
+fun NoticeShade() {
+    val t = LocalDen.current
+    val context = LocalContext.current
+    val net by com.pixelden.launcher.system.NetStatus.state.collectAsState()
+    val notices by com.pixelden.launcher.system.Notices.items.collectAsState()
+    val listening by com.pixelden.launcher.system.Notices.connected.collectAsState()
+    var loading by remember { mutableStateOf(!listening) }
+    // Уведомления не прочитать: ни службы, ни доступа к отладке. OK на строке-подсказке спросит доступ.
+    var noAccess by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        noAccess = !withContext(kotlinx.coroutines.Dispatchers.IO) { com.pixelden.launcher.system.Notices.refresh(context) }
+        loading = false
+    }
+    val close = { WidgetDialogs.notices = false }
+    val shown = remember { androidx.compose.animation.core.Animatable(if (t.animations) 0f else 1f) }
+    LaunchedEffect(Unit) { shown.animateTo(1f, tween(180)) }
+    val first = rememberAutoFocus()
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.45f * shown.value))
+            .onPreviewKeyEvent { e ->
+                val code = e.nativeKeyEvent.keyCode
+                if (code == android.view.KeyEvent.KEYCODE_DPAD_UP && e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) UpEgg.press()
+                if (code != android.view.KeyEvent.KEYCODE_BACK) return@onPreviewKeyEvent false
+                if (e.type == KeyEventType.KeyUp) close()
+                true
+            },
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .graphicsLayer { translationY = -size.height * (1f - shown.value) }
+                .background(t.colors.bg.copy(alpha = 0.96f))
+                .padding(start = 56.dp, end = 56.dp, top = 24.dp, bottom = 18.dp),
+        ) {
+            val netText = when (net.kind) {
+                com.pixelden.launcher.system.NetState.Kind.WIFI -> "Wi-Fi"
+                com.pixelden.launcher.system.NetState.Kind.ETHERNET -> tr("Кабель")
+                com.pixelden.launcher.system.NetState.Kind.NONE -> tr("Нет подключения")
+            } + when {
+                net.kind == com.pixelden.launcher.system.NetState.Kind.NONE -> ""
+                net.online -> tr(" · интернет есть")
+                else -> tr(" · без интернета")
+            }
+            ShadeRow(if (net.online) ICON_NET else ICON_OFF, netText, null, first) {
+                val action = if (net.kind == com.pixelden.launcher.system.NetState.Kind.ETHERNET) android.provider.Settings.ACTION_SETTINGS else android.provider.Settings.ACTION_WIFI_SETTINGS
+                close(); runCatching { context.startActivity(android.content.Intent(action).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+            }
+            Spacer(Modifier.height(6.dp))
+            if (noAccess) ShadeRow(ICON_BELL, if (loading) tr("Ответьте на ТВ «Разрешить»…") else tr("Разрешить показывать уведомления — OK, ТВ один раз спросит доступ к отладке"), null, null) {
+                if (loading) return@ShadeRow
+                loading = true
+                scope.launch {
+                    noAccess = !withContext(kotlinx.coroutines.Dispatchers.IO) { com.pixelden.launcher.system.Notices.refresh(context, ask = true) }
+                    loading = false
+                }
+            }
+            when {
+                loading && notices.isEmpty() -> PText(tr("Загружаю уведомления…"), 15.sp, t.colors.dim, Modifier.padding(8.dp))
+                notices.isEmpty() && !noAccess -> PText(tr("Уведомлений нет"), 15.sp, t.colors.dim, Modifier.padding(8.dp))
+                else -> notices.take(6).forEachIndexed { i, n ->
+                    val app = com.pixelden.launcher.system.label(context, n.pkg)
+                    val line = listOf(n.title, n.text).filter { it.isNotBlank() }.joinToString(" — ")
+                    val ago = if (n.time <= 0) null else ((System.currentTimeMillis() - n.time) / 60_000).let { m ->
+                        if (m < 1) tr("сейчас") else if (m < 60) tr("{0} мин", m) else tr("{0} ч", m / 60)
+                    }
+                    ShadeRow(ICON_BELL, "$app · $line", ago, null,
+                        onSide = if (listening && n.clearable) ({ com.pixelden.launcher.system.Notices.dismiss(n) }) else null,
+                        onDownAtEnd = if (i == minOf(notices.size, 6) - 1) close else null,
+                    ) { close(); com.pixelden.launcher.system.Notices.open(context, n) }
+                }
+            }
+            PText(
+                if (listening) tr("OK — открыть · ← → — убрать · BACK — закрыть") else tr("OK — открыть · BACK — закрыть"),
+                12.sp, t.colors.dim, Modifier.padding(start = 8.dp, top = 8.dp),
+            )
+        }
+    }
+}
+
+private val ICON_BELL = listOf("....#....", "...###...", "..#####..", "..#####..", "..#####..", ".#######.", "#########", ".........", "....#....")
+private val ICON_OFF = listOf("#.......#", ".#.....#.", "..#...#..", "...#.#...", "....#....", "...#.#...", "..#...#..", ".#.....#.", "#.......#")
+
+/** Строка шторки: значок, текст в одну строку, справа — время. */
+@Composable
+private fun ShadeRow(
+    icon: List<String>,
+    text: String,
+    right: String?,
+    focusRequester: androidx.compose.ui.focus.FocusRequester?,
+    onSide: (() -> Unit)? = null,
+    onDownAtEnd: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    val t = LocalDen.current
+    var focused by remember { mutableStateOf(false) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .let { if (focusRequester != null) it.focusRequester(focusRequester) else it }
+            .onPreviewKeyEvent { e ->
+                if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (e.nativeKeyEvent.keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> { onSide?.invoke(); true }
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> if (onDownAtEnd != null) { onDownAtEnd(); true } else false
+                    else -> false
+                }
+            }
+            .tvClickable(onFocus = { focused = it }, onClick = onClick)
+            .pixelBox(if (focused) t.colors.accent else Color.Transparent, if (focused) t.colors.surfaceHi else Color.Transparent, t.border)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PixelIcon(icon, 2, if (focused) t.colors.accent else t.colors.text.copy(alpha = 0.7f), t.colors.surfaceHi)
+        PText(text, 15.sp, if (focused) t.colors.text else t.colors.dim, Modifier.weight(1f).padding(start = 12.dp), maxLines = 1)
+        right?.let { PText(it, 13.sp, t.colors.dim, Modifier.padding(start = 12.dp)) }
+    }
 }
 
 private fun size(b: Long): String =

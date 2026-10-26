@@ -78,6 +78,12 @@ data class LauncherConfig(
     // Ряды
     val showFavorites: Boolean = true,
     val showInputs: Boolean = true,
+    /** Ряд «Продолжить просмотр» под избранным. */
+    val showWatchNext: Boolean = true,
+    /** Виджет «Интернет»: false — с включения ТВ, true — за сегодня. */
+    val netToday: Boolean = false,
+    /** Разрешение на ряд «Продолжить просмотр» уже спрашивали (повторно не надоедаем). */
+    val watchNextAsked: Boolean = false,
     val showCategories: Boolean = true,
     val showAllApps: Boolean = true,
     /** Кнопки запуска ручных сценариев под шапкой. */
@@ -175,6 +181,10 @@ sealed class Trigger {
     /** Время и дни недели (1 = пн … 7 = вс). */
     @Serializable @SerialName("time")
     data class Time(val hour: Int = 21, val minute: Int = 0, val days: List<Int> = listOf(1, 2, 3, 4, 5, 6, 7)) : Trigger()
+
+    /** ТВ включили с пульта из режима ожидания (а не после полной загрузки), с задержкой. */
+    @Serializable @SerialName("wake")
+    data class Wake(val delaySec: Int = 2) : Trigger()
 
     /** Только вручную: из списка сценариев или плиткой на главном экране. */
     @Serializable @SerialName("manual")

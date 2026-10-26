@@ -260,6 +260,7 @@ const ACTIONS = {
 function trigText(t) {
   switch (t.type) {
     case 'boot': return `После включения, через ${t.delaySec} с`;
+    case 'wake': return `Выход из ожидания, через ${t.delaySec} с`;
     case 'key': return `Кнопка ${KEYS[t.keyCode] || t.keyCode} · ${PRESS[t.press]}`;
     case 'time': return `В ${String(t.hour).padStart(2, '0')}:${String(t.minute).padStart(2, '0')} · ${t.days.length === 7 ? 'каждый день' : t.days.map(d => DAYS[d - 1]).join(', ')}`;
     default: return 'Вручную';
@@ -298,13 +299,14 @@ function newScn() { const s = { id: uid(), name: 'Новый сценарий', 
 function scn() { return C.scenarios.find(s => s.id === editing); }
 function setTrig(type) {
   const s = scn();
-  s.trigger = ({ boot: { type, delaySec: 10 }, key: { type, keyCode: 183, press: 'LONG' }, time: { type, hour: 21, minute: 0, days: [1, 2, 3, 4, 5, 6, 7] }, manual: { type } })[type];
+  s.trigger = ({ boot: { type, delaySec: 10 }, wake: { type, delaySec: 2 }, key: { type, keyCode: 183, press: 'LONG' }, time: { type, hour: 21, minute: 0, days: [1, 2, 3, 4, 5, 6, 7] }, manual: { type } })[type];
   touch(); rEditor();
 }
 function rEditor() {
   const s = scn(); if (!s) { editing = null; return rScn(); }
   const t = s.trigger;
   let trig = '';
+  if (t.type === 'wake') trig = `<label class="hint">Через, секунд</label><input type="number" min="0" value="${t.delaySec}" onchange="scn().trigger.delaySec=+this.value;touch()"><p class="hint">Когда ТВ включили с пульта из режима ожидания.</p>`;
   if (t.type === 'boot') trig = `<label class="hint">Через, секунд</label><input type="number" min="0" value="${t.delaySec}" onchange="scn().trigger.delaySec=+this.value;touch()">`;
   if (t.type === 'key') trig = `<div class="grid2"><div><label class="hint">Код кнопки</label><input type="number" list="keys" value="${t.keyCode}" onchange="scn().trigger.keyCode=+this.value;touch()"></div>
       <div><label class="hint">Нажатие</label><select onchange="scn().trigger.press=this.value;touch()">${Object.entries(PRESS).map(([k, v]) => `<option value="${k}" ${k === t.press ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div>
@@ -319,7 +321,7 @@ function rEditor() {
     <label class="row"><input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="scn().enabled=this.checked;touch()">Включён</label>
   </div>
   <h2>Когда</h2>
-  <div class="card"><select onchange="setTrig(this.value)">${[['manual', 'Вручную'], ['boot', 'После включения ТВ'], ['key', 'Кнопка пульта'], ['time', 'По времени']].map(([k, v]) => `<option value="${k}" ${k === t.type ? 'selected' : ''}>${v}</option>`).join('')}</select>
+  <div class="card"><select onchange="setTrig(this.value)">${[['manual', 'Вручную'], ['boot', 'После включения ТВ'], ['wake', 'Выход из ожидания'], ['key', 'Кнопка пульта'], ['time', 'По времени']].map(([k, v]) => `<option value="${k}" ${k === t.type ? 'selected' : ''}>${v}</option>`).join('')}</select>
     <div style="margin-top:8px">${trig}</div></div>
   <h2>Что делать</h2>
   <div class="card">${s.actions.map((a, i) => actEditor(a, i, s.actions.length)).join('') || '<div class="hint">Добавьте первое действие</div>'}
@@ -437,7 +439,7 @@ function rSet() {
     ${numIn('columns', 'Колонок во «Все приложения»', 3, 10)}${numIn('cardSize', 'Размер карточек, %', 60, 160, 10)}
     ${chk('showLabels', 'Подписи под карточками')}${chk('preferBanners', 'Баннеры приложений')}
     ${chk('clock24h', '24-часовой формат')}${chk('showSeconds', 'Секунды')}${chk('showDate', 'Дата')}
-    ${chk('showFavorites', 'Ряд «Избранное»')}${chk('showInputs', 'Ряд «Входы»')}${chk('showCategories', 'Категории')}${chk('showAllApps', 'Все приложения')}
+    ${chk('showFavorites', 'Ряд «Избранное»')}${chk('showWatchNext', 'Ряд «Продолжить просмотр»')}${chk('showInputs', 'Ряд «Входы»')}${chk('showCategories', 'Категории')}${chk('showAllApps', 'Все приложения')}
     ${chk('showManualScenarios', 'Кнопки ручных сценариев')}
     ${chk('showWidgets', 'Виджеты под часами')}
     ${S.widgets.map(w => `<label class="row"><div class="grow">&nbsp;&nbsp;${esc(w.name)}</div><input type="checkbox" ${C.widgets.includes(w.id) ? 'checked' : ''} onchange="if(this.checked&&C.widgets.length>=4){this.checked=false;toast(T('Не больше 4 виджетов — сначала выключите какой-нибудь'));return}C.widgets=this.checked?[...C.widgets,'${w.id}']:C.widgets.filter(x=>x!=='${w.id}');touch()"></label>`).join('')}

@@ -52,6 +52,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -95,6 +97,7 @@ fun HomeScreen(
     val t = LocalDen.current
     val apps by app.apps.apps.collectAsState()
     val inputs by app.apps.inputs.collectAsState()
+    val watch by app.watchNext.items.collectAsState()
     val event by app.engine.events.collectAsState()
 
     var menuFor by remember { mutableStateOf<AppEntry?>(null) }
@@ -181,6 +184,14 @@ fun HomeScreen(
                     }
                 }
             }
+            if (cfg.showWatchNext && watch.isNotEmpty()) {
+                item(key = "watch") {
+                    RowTitle(tr("Продолжить просмотр"))
+                    WatchRow(watch, cfg, restoreKey,
+                        onFocus = { w, k -> focusedLabel = w.title; focusedPkg = w.pkg; lastFocusKey = k },
+                        onClick = { jump++; app.watchNext.open(it) })
+                }
+            }
             if (cfg.showInputs && inputs.isNotEmpty()) {
                 item {
                     RowTitle(tr("Входы"))
@@ -212,6 +223,7 @@ fun HomeScreen(
         }
 
         if (WidgetDialogs.rates) RatesChooser(cfg)
+        if (WidgetDialogs.notices) NoticeShade()
         menuFor?.let { entry ->
             AppMenu(
                 entry = entry,
@@ -271,9 +283,6 @@ private fun Header(
     val news by app.news.titles.collectAsState()
     var bubble by remember { mutableStateOf<String?>(null) }
     var appComment by remember { mutableStateOf<String?>(null) }
-    var bruhKey by remember { mutableStateOf(0) }
-    var upPresses by remember { mutableStateOf(0) }
-    var lastUp by remember { mutableStateOf(0L) }
 
     /** Показать реплику на [ms] и убрать, если её не перебили другой. */
     suspend fun say(text: String, ms: Long) {
@@ -330,16 +339,12 @@ private fun Header(
             Row(
                 Modifier
                     .onFocusChanged { if (it.hasFocus) onTopFocus() }
-                    // Пасхалка: выше кнопок ничего нет — пять «вверх» подряд, и маскот говорит «bruh.».
+                    // «Вверх» с кнопок выдвигает шторку (статус сети и уведомления). Дальше вверх идти некуда —
+                    // нажатие гасим, иначе фокус уходит из лаунчера в никуда.
                     .onPreviewKeyEvent { e ->
-                        if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP && e.nativeKeyEvent.repeatCount == 0) {
-                            val now = android.os.SystemClock.uptimeMillis()
-                            upPresses = if (now - lastUp < 1500) upPresses + 1 else 1
-                            lastUp = now
-                            if (upPresses >= 5) { upPresses = 0; bruhKey++ }
-                        }
-                        // Выше кнопок ничего нет: «вверх» гасим, иначе фокус уходит из лаунчера в никуда.
-                        e.nativeKeyEvent.keyCode == android.view.KeyEvent.KEYCODE_DPAD_UP
+                        if (e.nativeKeyEvent.keyCode != android.view.KeyEvent.KEYCODE_DPAD_UP) return@onPreviewKeyEvent false
+                        if (e.type == KeyEventType.KeyDown && e.nativeKeyEvent.repeatCount == 0) { UpEgg.press(); WidgetDialogs.notices = true }
+                        true
                     },
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -367,7 +372,7 @@ private fun Header(
                         roam = (360 / cfg.mascotScale - 32).coerceIn(0, 40),
                         headroom = 8,
                         bubble = shown,
-                        bruhKey = bruhKey,
+                        bruhKey = UpEgg.bruh,
                     )
                 }
             }
@@ -551,6 +556,107 @@ private fun AppCard(
     }
 }
 
+/** Ряд «Продолжить просмотр»: те же размеры и отступы, что у ряда приложений. */
+@Composable
+private fun WatchRow(
+    list: List<com.pixelden.launcher.apps.WatchItem>,
+    cfg: LauncherConfig,
+    restoreKey: String?,
+    onFocus: (com.pixelden.launcher.apps.WatchItem, String) -> Unit,
+    onClick: (com.pixelden.launcher.apps.WatchItem) -> Unit,
+) {
+    val gap = 22.dp
+    val bleed = 40.dp
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val n = (4 * 100f / cfg.cardSize).roundToInt().coerceIn(2, 8)
+        val width = (maxWidth - gap * (n - 1)) / n
+        LazyRow(
+            modifier = Modifier.layout { m, c ->
+                val extra = bleed.roundToPx() * 2
+                val p = m.measure(c.copy(minWidth = c.maxWidth + extra, maxWidth = c.maxWidth + extra))
+                layout(c.maxWidth, p.height) { p.place(-extra / 2, 0) }
+            },
+            horizontalArrangement = Arrangement.spacedBy(gap),
+            contentPadding = PaddingValues(vertical = 16.dp, horizontal = bleed),
+        ) {
+            items(list, key = { "watch:${it.id}" }) { w ->
+                val key = "watch:${w.id}"
+                WatchCard(w, cfg, width, key, restoreKey, { onFocus(w, key) }, { onClick(w) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun WatchCard(
+    w: com.pixelden.launcher.apps.WatchItem,
+    cfg: LauncherConfig,
+    width: Dp,
+    key: String,
+    restoreKey: String?,
+    onFocused: () -> Unit,
+    onClick: () -> Unit,
+) {
+    val t = LocalDen.current
+    val app = PixelDenApp.instance
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    var focused by remember { mutableStateOf(false) }
+    val fr = remember { FocusRequester() }
+    LaunchedEffect(restoreKey) { if (restoreKey?.substringBefore('#') == key) fr.tryFocus() }
+    val height = width * 9f / 16f
+    val poster by produceState<ImageBitmap?>(null, w.poster) {
+        value = with(density) { app.watchNext.poster(w.poster, width.roundToPx(), height.roundToPx()) }
+    }
+    // Нет постера — значок приложения посередине.
+    val icon by produceState<ImageBitmap?>(null, w.pkg, poster) {
+        if (poster == null) hold { app.apps.icon(w.pkg) }
+    }
+    val anim = if (t.animations) tween<Float>(180, easing = FastOutSlowInEasing) else snap()
+    val scale by animateFloatAsState(if (focused && "scale" in cfg.focusEffects) t.focusScale else 1f, anim, label = "scale")
+    val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+
+    Column(Modifier.width(width).bringIntoViewRequester(bring)) {
+        Box(
+            Modifier
+                .size(width, height)
+                .focusRequester(fr)
+                .graphicsLayer { scaleX = scale; scaleY = scale }
+                .tvClickable(
+                    onFocus = {
+                        focused = it
+                        if (it) { onFocused(); scope.launch { delay(30); bring.bringIntoView() } }
+                    },
+                    onClick = onClick,
+                )
+                .pixelBox(Color.Transparent, t.colors.surface, t.border)
+                .drawWithContent {
+                    drawContent()
+                    // Сколько уже досмотрено — полоска внизу.
+                    w.progress?.let { p ->
+                        val h = 4.dp.toPx()
+                        drawRect(Color.Black.copy(alpha = 0.5f), Offset(0f, size.height - h), Size(size.width, h))
+                        drawRect(t.colors.accent, Offset(0f, size.height - h), Size(size.width * p, h))
+                    }
+                    if (focused) pixelFrame(t.colors.accent, null, t.border.dp.toPx())
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.fillMaxSize().padding((t.border + 1).dp).clipToBounds(), contentAlignment = Alignment.Center) {
+                val p = poster
+                val i = icon
+                when {
+                    p != null -> Image(p, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    i != null -> Image(i, null, Modifier.size(height * 0.5f))
+                    else -> PText(w.title.take(2).uppercase(), 22.sp, t.colors.dim)
+                }
+            }
+        }
+        PText(w.title, 14.sp, if (focused) t.colors.accent else t.colors.text, Modifier.padding(top = 6.dp, start = 2.dp))
+        if (w.subtitle.isNotBlank()) PText(w.subtitle, 12.sp, t.colors.dim, Modifier.padding(start = 2.dp))
+    }
+}
+
 @Composable
 private fun InputRow(inputs: List<InputEntry>, onClick: (InputEntry) -> Unit) {
     val t = LocalDen.current
@@ -562,7 +668,13 @@ private fun InputRow(inputs: List<InputEntry>, onClick: (InputEntry) -> Unit) {
                     .tvClickable(onFocus = { focused = it }) { onClick(i) }
                     .pixelBox(if (focused) t.colors.accent else Color.Transparent, if (focused) t.colors.surfaceHi else t.colors.surface, t.border)
                     .padding(horizontal = 22.dp, vertical = 14.dp)
-            ) { PText("${i.label}", 17.sp, if (focused) t.colors.text else t.colors.dim) }
+            ) {
+                Column {
+                    PText(i.label, 17.sp, if (focused) t.colors.text else t.colors.dim)
+                    // Плитка названа именем устройства — порт мелко ниже.
+                    i.port?.let { PText(it, 12.sp, t.colors.dim) }
+                }
+            }
         }
     }
     Spacer(Modifier.height(8.dp))

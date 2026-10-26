@@ -62,6 +62,7 @@ private fun pressName(p: PressType) = when (p) {
 
 fun triggerText(t: Trigger): String = when (t) {
     is Trigger.Boot -> tr("после загрузки, через {0} с", (t.delaySec))
+    is Trigger.Wake -> tr("при выходе из ожидания, через {0} с", (t.delaySec))
     is Trigger.Key -> tr("кнопка «{0}», {1}", (keyName(t.keyCode)), (pressName(t.press)))
     is Trigger.Time -> "%02d:%02d, %s".format(
         t.hour, t.minute,
@@ -214,13 +215,13 @@ fun ScenarioEditorScreen(cfg: LauncherConfig, id: String, onClose: () -> Unit) {
     fun updTrigger(tr: Trigger) = upd { it.copy(trigger = tr) }
     fun updActions(f: (MutableList<Action>) -> Unit) = upd { it.copy(actions = it.actions.toMutableList().also(f)) }
 
-    val triggerTypes = listOf(tr("Вручную"), tr("После загрузки"), tr("Кнопка пульта"), tr("По времени"))
+    val triggerTypes = listOf(tr("Вручную"), tr("После загрузки"), tr("Кнопка пульта"), tr("По времени"), tr("Выход из ожидания"))
     val currentType = when (s.trigger) {
-        Trigger.Manual -> 0; is Trigger.Boot -> 1; is Trigger.Key -> 2; is Trigger.Time -> 3
+        Trigger.Manual -> 0; is Trigger.Boot -> 1; is Trigger.Key -> 2; is Trigger.Time -> 3; is Trigger.Wake -> 4
     }
     fun switchType(step: Int) {
-        val next = ((currentType + step) % 4 + 4) % 4
-        updTrigger(when (next) { 1 -> Trigger.Boot(); 2 -> Trigger.Key(); 3 -> Trigger.Time(); else -> Trigger.Manual })
+        val next = ((currentType + step) % 5 + 5) % 5
+        updTrigger(when (next) { 1 -> Trigger.Boot(); 2 -> Trigger.Key(); 3 -> Trigger.Time(); 4 -> Trigger.Wake(); else -> Trigger.Manual })
     }
 
     Box(Modifier.fillMaxSize().background(t.colors.bg), contentAlignment = Alignment.TopCenter) {
@@ -232,6 +233,12 @@ fun ScenarioEditorScreen(cfg: LauncherConfig, id: String, onClose: () -> Unit) {
             item { SectionTitle(tr("Когда")) }
             item { SettingRow(tr("Триггер"), triggerTypes[currentType], onLeft = { switchType(-1) }, onRight = { switchType(1) }) }
             when (val tr = s.trigger) {
+                is Trigger.Wake -> item {
+                    SettingRow(tr("Задержка после включения"), tr("{0} с", (tr.delaySec)),
+                        hint = tr("Когда ТВ включили с пульта из режима ожидания. После полной загрузки срабатывает «После загрузки»"),
+                        onLeft = { updTrigger(tr.copy(delaySec = tr.delaySec.stepIn(-1, 0..120))) },
+                        onRight = { updTrigger(tr.copy(delaySec = tr.delaySec.stepIn(1, 0..120))) })
+                }
                 is Trigger.Boot -> item {
                     SettingRow(tr("Задержка после загрузки"), tr("{0} с", (tr.delaySec)),
                         hint = tr("Службе спецвозможностей нужно ~10 с, чтобы подняться"),
