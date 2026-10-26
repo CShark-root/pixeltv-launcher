@@ -13,7 +13,9 @@ import android.media.tv.TvContract
 import android.media.tv.TvInputInfo
 import android.media.tv.TvInputManager
 import android.util.LruCache
+import com.pixelden.launcher.ui.toHardware
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,11 +42,45 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
     private val _inputs = MutableStateFlow<List<InputEntry>>(emptyList())
     val inputs: StateFlow<List<InputEntry>> = _inputs
 
-    // Баннеры 320x180 в ARGB ~230 КБ; 48 штук ≈ 11 МБ — разумный потолок для ТВ с 1,8 ГБ.
-    private val images = object : LruCache<String, ImageBitmap>(48) {}
+    /**
+     * Картинка в кэше и сколько карточек на экране её сейчас рисуют. Выброшенную из кэша картинку
+     * освобождаем сразу, как только её никто не рисует, — а не когда-нибудь сборщиком мусора.
+     */
+    private class Slot(val img: ImageBitmap) { var users = 0; var dropped = false }
+    private val lock = Any()
+    private val live = java.util.IdentityHashMap<ImageBitmap, Slot>()
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /** Система просит освободить память — иконки и баннеры подгрузятся заново по мере надобности. */
-    fun trimImages() = images.evictAll()
+    // Баннеры 320x180 ~230 КБ; 48 штук ≈ 11 МБ — разумный потолок для ТВ с 1,8 ГБ.
+    private val images = object : LruCache<String, Slot>(48) {
+        override fun entryRemoved(evicted: Boolean, key: String, old: Slot, new: Slot?) = synchronized(lock) {
+            old.dropped = true
+            if (old.users == 0) free(old)
+        }
+    }
+
+    private fun free(s: Slot) {
+        live.remove(s.img)
+        // Через пару кадров: экран мог ещё не перерисоваться без этой картинки.
+        main.postDelayed({ synchronized(lock) { if (s.users == 0) s.img.asAndroidBitmap().recycle() } }, 200)
+    }
+
+    /**
+     * Выбросить из кэша все картинки. Те, что сейчас не на экране, освобождаются сразу; возвращает их объём.
+     * Картинки на экране освободятся, когда их карточки уйдут с экрана.
+     */
+    fun trimImages(): Long = synchronized(lock) {
+        val idle = images.snapshot().values.filter { it.users == 0 }.sumOf { it.img.asAndroidBitmap().allocationByteCount.toLong() }
+        images.evictAll()
+        idle
+    }
+
+    /** Картинки, которые держат карточки на экране: [banner] и [icon] выдают их с отметкой, вернуть — [release]. */
+    fun release(img: ImageBitmap) = synchronized(lock) {
+        val s = live[img] ?: return@synchronized
+        s.users--
+        if (s.users == 0 && s.dropped) free(s)
+    }
 
     init {
         refresh()
@@ -122,29 +158,38 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
         Intent(Intent.ACTION_VIEW, TvContract.buildChannelUriForPassthroughInput(inputId))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-    /** Баннер приложения (16:9) или null, если его нет. */
-    suspend fun banner(pkg: String): ImageBitmap? = cached("b:$pkg") {
+    /** Баннер приложения (16:9) или null, если его нет. Отмечен как занятый — вернуть через [release]. */
+    suspend fun banner(pkg: String): ImageBitmap? = acquire("b:$pkg") {
         val d = runCatching { pm.getApplicationBanner(pkg) }.getOrNull()
             ?: _apps.value.firstOrNull { it.pkg == pkg }?.let { runCatching { pm.getActivityBanner(it.component) }.getOrNull() }
-        d?.toImage(320, 180)
+        d?.toBitmap(320, 180)?.toHardware()?.asImageBitmap()
     }
 
-    suspend fun icon(pkg: String): ImageBitmap? = cached("i:$pkg") {
-        runCatching { pm.getApplicationIcon(pkg) }.getOrNull()?.toImage(128, 128)
+    /** Иконка приложения. Отмечена как занятая — вернуть через [release]. */
+    suspend fun icon(pkg: String): ImageBitmap? = acquire("i:$pkg") {
+        runCatching { pm.getApplicationIcon(pkg) }.getOrNull()?.toBitmap(128, 128)?.toHardware()?.asImageBitmap()
     }
 
-    private suspend fun cached(key: String, load: () -> ImageBitmap?): ImageBitmap? {
-        images.get(key)?.let { return it }
+    /** Иконка для веб-панели: обычная картинка мимо кэша — её сожмут в PNG и забудут. */
+    fun iconBitmap(pkg: String): Bitmap? = runCatching { pm.getApplicationIcon(pkg) }.getOrNull()?.toBitmap(128, 128)
+
+    private suspend fun acquire(key: String, load: () -> ImageBitmap?): ImageBitmap? {
+        synchronized(lock) { images.get(key)?.let { it.users++; return it.img } }
         val img = withContext(Dispatchers.IO) { load() } ?: return null
-        images.put(key, img)
+        synchronized(lock) {
+            // Пока грузили, эту же картинку могла загрузить соседняя карточка — берём её, свою выбрасываем.
+            images.get(key)?.let { it.users++; img.asAndroidBitmap().recycle(); return it.img }
+            val s = Slot(img).also { it.users = 1 }
+            live[img] = s
+            images.put(key, s)
+        }
         return img
     }
 
-    private fun Drawable.toImage(w: Int, h: Int): ImageBitmap {
+    private fun Drawable.toBitmap(w: Int, h: Int): Bitmap {
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        val c = Canvas(bmp)
         setBounds(0, 0, w, h)
-        draw(c)
-        return bmp.asImageBitmap()
+        draw(Canvas(bmp))
+        return bmp
     }
 }

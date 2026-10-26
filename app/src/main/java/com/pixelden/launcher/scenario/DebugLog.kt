@@ -128,6 +128,12 @@ class DebugReceiver : BroadcastReceiver() {
                 val list = com.pixelden.launcher.system.TvCleanup.scan(context)
                 DebugLog.i("чистка видит ${list.size}: " + list.joinToString { (if (it.enabled) "+" else "-") + it.item.pkg })
             }
+            // Та же уборка, что по кнопке «Освободить память» (результат — в журнале).
+            "com.pixelden.launcher.FREE" -> app.scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val pkgs = app.apps.apps.value.map { it.pkg }.toSet()
+                com.pixelden.launcher.system.Health.freeMemory(context, pkgs)
+                com.pixelden.launcher.system.SelfClean.run()
+            }
             "com.pixelden.launcher.BACKUP" -> {
                 val r = app.store.exportBackup()
                 DebugLog.i("BACKUP: " + r.fold({ it.absolutePath }, { "ошибка ${it.message}" }))

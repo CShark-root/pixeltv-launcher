@@ -70,6 +70,15 @@ fun activeWallpaper(cfg: LauncherConfig, hour: Float): String? =
     (if (cfg.wallpaperByTime) cfg.timeWallpapers[timeSlot(hour)] else null) ?: cfg.wallpaperPath
 
 /**
+ * Картинка только в видеопамяти. Обычная хранится дважды: в памяти приложения и копией в видеочипе.
+ * Пиксели такой картинки не прочитать — для этого [toSoftware].
+ */
+fun Bitmap.toHardware(): Bitmap = copy(Bitmap.Config.HARDWARE, false)?.also { recycle() } ?: this
+
+/** Обычная копия картинки — чтобы читать пиксели или сжимать в файл. */
+fun Bitmap.toSoftware(): Bitmap = if (config == Bitmap.Config.HARDWARE) copy(Bitmap.Config.ARGB_8888, false) else this
+
+/**
  * Картинка, ужатая под экран: степень двойки, при которой она ещё не меньше [maxW]×[maxH].
  * Фото 6000×4000 с телефона занимает так ~8 МБ вместо ~96.
  */
@@ -115,8 +124,18 @@ private fun ImageWallpaper(path: String) {
     val density = LocalDensity.current
     val w = with(density) { conf.screenWidthDp * this.density }.toInt().coerceAtLeast(1280)
     val h = with(density) { conf.screenHeightDp * this.density }.toInt().coerceAtLeast(720)
+    // Готовые обои живут в WallpaperCache: возврат на главный экран показывает их сразу, без нового чтения файла.
     val img by produceState<ImageBitmap?>(null, path) {
-        value = withContext(Dispatchers.IO) { runCatching { decodeSampled(path, w, h)?.asImageBitmap() }.getOrNull() }
+        val key = "$path@${w}x$h"
+        val bmp = WallpaperCache.acquire(key)
+            ?: withContext(Dispatchers.IO) { runCatching { decodeSampled(path, w, h)?.toHardware() }.getOrNull() }
+                ?.let { WallpaperCache.store(key, it) }
+            ?: return@produceState
+        value = bmp.asImageBitmap()
+        try { kotlinx.coroutines.awaitCancellation() } finally {
+            value = null
+            WallpaperCache.release(bmp)
+        }
     }
     // Отдельный слой: обои не перерисовываются при каждом сдвиге списка.
     img?.let { Image(it, null, Modifier.fillMaxSize().graphicsLayer(), contentScale = ContentScale.Crop) }
@@ -570,4 +589,43 @@ fun sceneStill(kind: String): Bitmap = when (kind) {
     "scene:city" -> buildCity(currentHour(), null, System.currentTimeMillis() / 15_000)
     "scene:fire" -> buildFireplace()
     else -> buildLandscape(currentHour(), null)
+}
+
+/**
+ * Обои, готовые к показу (одна картинка, ~8 МБ). Держим их и когда главный экран закрыт — иначе возврат
+ * на него ждал бы чтения файла 1–2 секунды. Освобождает их уборка ([trim]), если обои сейчас не на экране.
+ */
+object WallpaperCache {
+    private var key: String? = null
+    private var bmp: Bitmap? = null
+    private var users = 0
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
+
+    @Synchronized fun acquire(k: String): Bitmap? = bmp?.takeIf { key == k && !it.isRecycled }?.also { users++ }
+
+    /** Запомнить новые обои; прежние (другой файл) освобождаем, если их никто не рисует. */
+    @Synchronized fun store(k: String, b: Bitmap): Bitmap {
+        if (key == k) bmp?.takeIf { !it.isRecycled }?.let { b.recycle(); users++; return it }
+        if (users == 0) bmp?.let(::recycleLater)
+        key = k; bmp = b; users = 1
+        return b
+    }
+
+    @Synchronized fun release(b: Bitmap) {
+        if (b === bmp) users = (users - 1).coerceAtLeast(0)
+        // Обои сменились, пока эти были на экране, — теперь их можно освободить.
+        else recycleLater(b)
+    }
+
+    /** Освободить обои, если их сейчас никто не рисует. Возвращает освобождённый объём. */
+    @Synchronized fun trim(): Long {
+        val b = bmp?.takeIf { users == 0 } ?: return 0
+        val size = b.allocationByteCount.toLong()
+        bmp = null; key = null
+        recycleLater(b)
+        return size
+    }
+
+    // Через пару кадров: экран мог ещё не перерисоваться без них.
+    private fun recycleLater(b: Bitmap) = main.postDelayed({ b.recycle() }, 200)
 }

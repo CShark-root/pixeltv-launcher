@@ -28,8 +28,12 @@ class AdbClient(private val context: Context) {
 
     private class Msg(val cmd: Int, val arg0: Int, val arg1: Int, val data: ByteArray)
 
-    /** Выполнить команду в оболочке ТВ и вернуть её вывод. */
-    fun shell(command: String, timeoutMs: Int = 30_000): String {
+    /**
+     * Выполнить команду в оболочке ТВ и вернуть её вывод. [ask] = false — для фоновой работы: если доступа
+     * к отладке ещё нет, сразу ошибка, без вопроса на экране ТВ и минуты ожидания.
+     */
+    fun shell(command: String, timeoutMs: Int = 30_000, ask: Boolean = true): String {
+        this.ask = ask
         // Первый раз ТВ спрашивает «Разрешить отладку?». После ответа система не продолжает старое
         // соединение, поэтому переподключаемся каждые 3 секунды, пока не пустят (до минуты).
         val deadline = System.currentTimeMillis() + 60_000
@@ -43,6 +47,7 @@ class AdbClient(private val context: Context) {
     }
 
     private class NotAuthorizedYet : Exception()
+    private var ask = true
     private var pubkeySent = false
 
     private fun attempt(command: String, timeoutMs: Int): String {
@@ -81,6 +86,7 @@ class AdbClient(private val context: Context) {
                 }
                 // Подпись не узнали — ключ новый: отправляем открытый ключ, ТВ покажет вопрос.
                 m.cmd == AUTH && m.arg0 == AUTH_TOKEN -> {
+                    if (!ask) error(tr("на ТВ не разрешили отладку"))
                     // Ключ отправляем один раз — иначе ТВ будет спрашивать разрешение по кругу.
                     if (!pubkeySent) send(out, AUTH, AUTH_RSAPUBLICKEY, 0, publicKeyBytes(keys.public as RSAPublicKey))
                     pubkeySent = true

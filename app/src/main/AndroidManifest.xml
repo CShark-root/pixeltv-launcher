@@ -93,6 +93,7 @@
                 <action android:name="com.pixelden.launcher.CITY" />
                 <action android:name="com.pixelden.launcher.ADBTEST" />
                 <action android:name="com.pixelden.launcher.SCAN" />
+                <action android:name="com.pixelden.launcher.FREE" />
                 <action android:name="com.pixelden.launcher.BACKUP" />
                 <action android:name="com.pixelden.launcher.RESTORE" />
                 <action android:name="com.pixelden.launcher.ONBOARD" />

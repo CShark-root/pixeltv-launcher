@@ -465,10 +465,10 @@ private fun AppCard(
     LaunchedEffect(restoreKey) { if (restoreKey?.substringBefore('#') == key) fr.tryFocus() }
 
     val banner by produceState<ImageBitmap?>(null, e.pkg, cfg.preferBanners) {
-        value = if (cfg.preferBanners) repo.banner(e.pkg) else null
+        if (cfg.preferBanners) hold { repo.banner(e.pkg) }
     }
     val icon by produceState<ImageBitmap?>(null, e.pkg, banner) {
-        value = if (banner == null) repo.icon(e.pkg) else null
+        if (banner == null) hold { repo.icon(e.pkg) }
     }
     val height = width * 9f / 16f
     val effects = remember(cfg.focusEffects) { cfg.focusEffects.toSet() }
@@ -659,5 +659,15 @@ private fun WeatherLine(cfg: LauncherConfig) {
             ).joinToString(" · ")
             if (extra.isNotEmpty()) PText(extra, 14.sp, t.colors.dim.copy(alpha = 0.75f))
         }
+    }
+}
+
+/** Держать картинку из кэша, пока карточка на экране, и вернуть её кэшу, когда карточка ушла. */
+private suspend fun androidx.compose.runtime.ProduceStateScope<ImageBitmap?>.hold(load: suspend () -> ImageBitmap?) {
+    val img = load() ?: return
+    value = img
+    try { kotlinx.coroutines.awaitCancellation() } finally {
+        value = null
+        PixelDenApp.instance.apps.release(img)
     }
 }

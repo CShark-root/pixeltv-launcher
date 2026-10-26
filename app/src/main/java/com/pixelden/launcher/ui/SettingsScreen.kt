@@ -488,7 +488,7 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
 
             if (page == "health") {
                 item {
-                    ToggleRow(tr("Сторож памяти"), cfg.memoryGuard, tr("Когда памяти меньше 15%, сам закрывает фоновые приложения (не чаще раза в 10 минут)")) { v ->
+                    ToggleRow(tr("Сторож памяти"), cfg.memoryGuard, tr("Когда свободной памяти меньше 350 МБ, закрывает фоновые приложения, а если не помогло — останавливает их через adb. Открытое и музыку не трогает")) { v ->
                         set { it.copy(memoryGuard = v) }
                         com.pixelden.launcher.system.MemoryGuard.apply(v)
                     }

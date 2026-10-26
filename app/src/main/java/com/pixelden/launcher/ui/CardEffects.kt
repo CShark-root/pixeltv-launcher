@@ -53,9 +53,13 @@ fun Modifier.focusGlow(active: Boolean, color: Color): Modifier = if (!active) t
 fun CardImage(image: ImageBitmap, isBanner: Boolean, effects: Set<String>, focused: Boolean, accent: Color) {
     // Пиксельное проявление: заранее ужатые копии, которые сменяют друг друга при получении фокуса.
     val pixelSteps = remember(image, "pixel" in effects) {
-        if ("pixel" !in effects) emptyList() else listOf(16, 8, 4).map { k ->
-            val src = image.asAndroidBitmap()
-            Bitmap.createScaledBitmap(src, maxOf(1, src.width / k), maxOf(1, src.height / k), false).asImageBitmap()
+        if ("pixel" !in effects) emptyList() else {
+            // Иконки лежат в видеопамяти — для ужатия нужна обычная копия, потом она не нужна.
+            val orig = image.asAndroidBitmap()
+            val src = orig.toSoftware()
+            listOf(16, 8, 4).map { k ->
+                Bitmap.createScaledBitmap(src, maxOf(1, src.width / k), maxOf(1, src.height / k), false).asImageBitmap()
+            }.also { if (src !== orig) src.recycle() }
         }
     }
     var pixelStage by remember { mutableIntStateOf(-1) }

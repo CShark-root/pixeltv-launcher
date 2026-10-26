@@ -3,7 +3,6 @@ package com.pixelden.launcher.web
 import com.pixelden.launcher.i18n.tr
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.compose.ui.graphics.asAndroidBitmap
 import com.pixelden.launcher.PixelDenApp
 import com.pixelden.launcher.R
 import com.pixelden.launcher.data.ConfigStore
@@ -12,7 +11,7 @@ import com.pixelden.launcher.scenario.DebugLog
 import com.pixelden.launcher.scenario.DenAccessibilityService
 import com.pixelden.launcher.scenario.Scheduler
 import com.pixelden.launcher.system.Health
-import com.pixelden.launcher.system.trimSelf
+import com.pixelden.launcher.system.SelfClean
 import com.pixelden.launcher.system.SleepTimer
 import com.pixelden.launcher.ui.FONTS
 import com.pixelden.launcher.ui.FOCUS_EFFECTS
@@ -205,9 +204,9 @@ class WebServer(private val app: PixelDenApp) {
             }
             "GET /api/icon" -> {
                 val pkg = req.query["pkg"].orEmpty()
-                val img = runBlocking { app.apps.icon(pkg) }
+                val img = app.apps.iconBitmap(pkg)
                 if (img == null) send(out, 404, "text/plain", ByteArray(0))
-                else send(out, 200, "image/png", png(img.asAndroidBitmap()), cache = true)
+                else send(out, 200, "image/png", png(img).also { img.recycle() }, cache = true)
             }
             "GET /api/thumb" -> {
                 val path = req.query["path"].orEmpty()
@@ -277,8 +276,8 @@ class WebServer(private val app: PixelDenApp) {
             "POST /api/free" -> {
                 val pkgs = app.apps.apps.value.map { it.pkg } + Health.recentApps(app).map { it.pkg }
                 val freed = Health.freeMemory(app, pkgs.toSet())
-                val self = Health.trimSelf(app)
-                json(out, 200, buildJsonObject { put("freedMb", freed / 1_048_576); put("selfMb", self / 1_048_576) })
+                val self = SelfClean.run()
+                json(out, 200, buildJsonObject { put("freedMb", freed / 1_048_576); put("selfBeforeMb", self.before / 1_048_576); put("selfAfterMb", self.after / 1_048_576) })
             }
             "GET /api/catalog" -> json(out, 200, buildJsonArray {
                 com.pixelden.launcher.system.AppCatalog.APPS.forEach { a ->

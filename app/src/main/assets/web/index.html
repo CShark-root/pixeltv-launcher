@@ -452,7 +452,7 @@ function rSet() {
       <button class="btn small bad" onclick="C.yandexWeatherKey='';touch();rSet()">Удалить</button></div>
     <p class="hint">Без ключа погода берётся у Open-Meteo.</p>
   </div>
-  <h2>Память</h2><div class="card">${chk('memoryGuard', 'Сторож памяти', 'Когда памяти меньше 15%, сам закрывает фоновые приложения')}</div>
+  <h2>Память</h2><div class="card">${chk('memoryGuard', 'Сторож памяти', 'Когда свободной памяти меньше 350 МБ, закрывает фоновые приложения, а если не помогло — останавливает их через adb. Открытое и музыку не трогает')}</div>
   <h2>С телефона</h2><div class="card">
     ${chk('webPanel', 'Настройка с телефона', 'Выключите — эта страница перестанет открываться до включения на ТВ')}
     <div class="row"><div class="grow">PIN</div><input type="text" inputmode="numeric" style="width:120px" value="${esc(C.webPin)}" onchange="C.webPin=this.value.trim();touch()"></div>
@@ -534,7 +534,7 @@ async function catInstall(pkg, b) {
   b.disabled = true; b.textContent = T('Скачиваю…');
   try { await api('/api/catalog/install?pkg=' + encodeURIComponent(pkg), { method: 'POST' }); toast(T('ТВ скачивает приложение — потом подтвердите установку пультом.')); } catch (e) { toast(e.message); b.disabled = false; }
 }
-async function freeMem(b) { b.disabled = true; b.textContent = 'Освобождаю…'; try { const r = await api('/api/free', { method: 'POST' }); toast(T('Фоновые приложения') + ': ' + r.freedMb + ' · PixelTv: ' + r.selfMb + ' МБ'); } catch (e) { toast(e.message); } rTv(); }
+async function freeMem(b) { b.disabled = true; b.textContent = 'Освобождаю…'; try { const r = await api('/api/free', { method: 'POST' }); toast(T('Фоновые приложения') + ': ' + r.freedMb + ' МБ · PixelTv: ' + r.selfBeforeMb + ' → ' + r.selfAfterMb + ' МБ'); } catch (e) { toast(e.message); } rTv(); }
 async function sendApk(f) {
   if (!f) return;
   $('#apkState').textContent = 'Отправляю ' + (f.size / 1048576).toFixed(1) + ' МБ…';

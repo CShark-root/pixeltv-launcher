@@ -15,8 +15,8 @@ android {
         applicationId = "com.pixelden.launcher"
         minSdk = 28
         targetSdk = 34
-        versionCode = 18
-        versionName = "0.9.8"
+        versionCode = 19
+        versionName = "0.9.9"
         // Откуда приходят обновления (GitHub Releases).
         buildConfigField("String", "UPDATE_REPO", "\"${providers.gradleProperty("pixeltv.repo").getOrElse("")}\"")
     }

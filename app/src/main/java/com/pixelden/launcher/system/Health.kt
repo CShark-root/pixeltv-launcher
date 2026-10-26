@@ -37,7 +37,7 @@ object Health {
     fun snapshot(context: Context): HealthSnapshot {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val mi = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
-        val pss = runCatching { am.getProcessMemoryInfo(intArrayOf(Process.myPid()))[0].totalPss * 1024L }.getOrDefault(0L)
+        val pss = runCatching { SelfClean.pss() }.getOrDefault(0L)
         val fs = StatFs(Environment.getDataDirectory().path)
         val cores = Runtime.getRuntime().availableProcessors()
         return HealthSnapshot(
@@ -87,12 +87,13 @@ object Health {
      */
     fun freeMemory(context: Context, pkgs: Collection<String>): Long {
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val before = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.availMem
+        fun avail() = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.availMem
+        val before = avail()
         pkgs.filter { it != context.packageName }.forEach { runCatching { am.killBackgroundProcesses(it) } }
-        // Система освобождает память не мгновенно.
-        Thread.sleep(800)
-        val after = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.availMem
-        val freed = (after - before).coerceAtLeast(0)
+        // Система освобождает память не мгновенно: ждём до 2 секунд и берём лучший замер.
+        var best = before
+        repeat(4) { Thread.sleep(500); best = maxOf(best, avail()) }
+        val freed = best - before
         DebugLog.i("очистка фона: ${pkgs.size} пакетов, освобождено ${freed / 1_048_576} МБ")
         return freed
     }
@@ -109,10 +110,13 @@ fun label(context: Context, pkg: String): String = runCatching {
 }.getOrDefault(pkg)
 
 /**
- * Сторож памяти: раз в минуту проверяет свободную память ТВ и при нехватке закрывает фоновые приложения
- * (не чаще раза в 10 минут). Открытое на экране система закрыть не даст.
+ * Сторож памяти: каждые 30 секунд смотрит свободную память ТВ. Меньше [LIMIT] — убирается:
+ *  1. закрывает фоновые приложения стандартно (что система разрешает) и убирается в самом лаунчере;
+ *  2. если памяти всё ещё мало — через adb останавливает сторонние приложения, которые висят в фоне.
+ * Не чаще раза в 5 минут.
  */
 object MemoryGuard {
+    const val LIMIT = 350L * 1_048_576
     private var job: kotlinx.coroutines.Job? = null
     private var lastRun = 0L
 
@@ -122,41 +126,58 @@ object MemoryGuard {
         if (job?.isActive == true) return
         job = app.scope.launch {
             while (true) {
-                kotlinx.coroutines.delay(60_000)
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { check(app) }
+                kotlinx.coroutines.delay(30_000)
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { check(app) }.onFailure { DebugLog.e("сторож памяти", it) } }
             }
         }
     }
 
+    private fun avail(app: Context) = ActivityManager.MemoryInfo().also { (app.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getMemoryInfo(it) }.availMem
+
     private fun check(app: com.pixelden.launcher.PixelDenApp) {
-        val s = Health.snapshot(app)
-        // Сам лаунчер раздулся — сбрасываем свой кэш картинок.
-        if (s.launcherPss > 150L * 1_048_576) {
-            app.apps.trimImages()
-            DebugLog.i("сторож памяти: PixelTv занял ${mb(s.launcherPss)} МБ — кэш иконок сброшен")
-        }
-        val freePct = s.ramAvail * 100 / s.ramTotal
-        if ((freePct >= 15 && !s.lowMemory) || System.currentTimeMillis() - lastRun < 10 * 60_000L) return
+        val start = avail(app)
+        if (start >= LIMIT || System.currentTimeMillis() - lastRun < 5 * 60_000L) return
         lastRun = System.currentTimeMillis()
         val pkgs = app.apps.apps.value.map { it.pkg } + Health.recentApps(app).map { it.pkg }
-        val freed = Health.freeMemory(app, pkgs.toSet()) + Health.trimSelf(app)
-        DebugLog.i("сторож памяти: свободно было $freePct%, закрыл фон — освобождено ${mb(freed)} МБ")
+        Health.freeMemory(app, pkgs.toSet())
+        SelfClean.run()
+        var stopped = emptyList<String>()
+        if (avail(app) < LIMIT) {
+            stopped = runCatching { forceStopBackground(app) }
+                .onFailure { DebugLog.i("сторож памяти: adb недоступен — ${it.message}") }.getOrDefault(emptyList())
+            if (stopped.isNotEmpty()) Thread.sleep(1500)
+        }
+        val freed = (avail(app) - start).coerceAtLeast(0)
+        DebugLog.i("сторож памяти: было свободно ${mb(start)} МБ, стало ${mb(start + freed)} МБ" +
+            if (stopped.isEmpty()) "" else "; остановлены: " + stopped.joinToString())
         if (freed > 30L * 1_048_576) app.engine.notify(tr("Прибрался в памяти: +{0} МБ", (mb(freed))))
     }
-}
 
-/** Подчистить память самого лаунчера: кэш иконок, спрайты других маскотов, сборка мусора. Возвращает освобождённое. */
-fun Health.trimSelf(context: Context): Long {
-    val app = com.pixelden.launcher.PixelDenApp.instance
-    val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-    fun pss() = runCatching { am.getProcessMemoryInfo(intArrayOf(android.os.Process.myPid()))[0].totalPss * 1024L }.getOrDefault(0L)
-    val before = pss()
-    app.apps.trimImages()
-    com.pixelden.launcher.ui.SheetCache.keepOnly(app.store.current.mascot)
-    System.gc()
-    Runtime.getRuntime().runFinalization()
-    Thread.sleep(400)
-    val freed = (before - pss()).coerceAtLeast(0)
-    DebugLog.i("лаунчер подчистил себя: ${mb(freed)} МБ")
-    return freed
+    /**
+     * Остановить через adb сторонние приложения, которые висят в фоне. Не трогает: открытое на экране,
+     * «заметное» (служба на переднем плане — например, музыка), клавиатуру, спецвозможности и сам лаунчер.
+     * Возвращает остановленные пакеты.
+     */
+    private fun forceStopBackground(context: Context): List<String> {
+        val pm = context.packageManager
+        val cr = context.contentResolver
+        val keep = buildSet {
+            add(context.packageName)
+            android.provider.Settings.Secure.getString(cr, "default_input_method")?.let { add(it.substringBefore('/')) }
+            android.provider.Settings.Secure.getString(cr, "enabled_accessibility_services")?.split(':')?.forEach { add(it.substringBefore('/')) }
+        }
+        val candidates = pm.getInstalledApplications(0)
+            .filter { it.flags and (android.content.pm.ApplicationInfo.FLAG_SYSTEM or android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) == 0 }
+            .map { it.packageName }
+            .filter { it !in keep && TvCleanup.isPackageName(it) }
+        if (candidates.isEmpty()) return emptyList()
+        // Состояние процессов из «dumpsys activity lru»: fore/fg — на экране, vis — виден, prcp — заметен
+        // (музыка, служба на переднем плане), pers/psvc — системный, bkup — резервное копирование.
+        val script = "lru=\$(dumpsys activity lru); for p in ${candidates.joinToString(" ")}; do " +
+            "re=\":\$(echo \$p | sed 's/\\./\\\\./g')(:[^/ ]*)?/\"; " +
+            "echo \"\$lru\" | grep -qE \"\$re\" || continue; " +
+            "echo \"\$lru\" | grep -E \"\$re\" | grep -qE '#[0-9]+: (fore|fg|top|vis|prcp|pers|psvc|bkup)' && continue; " +
+            "am force-stop \$p; echo \$p; done"
+        return AdbClient(context).shell(script, ask = false).lines().map { it.trim() }.filter { it in candidates }
+    }
 }
