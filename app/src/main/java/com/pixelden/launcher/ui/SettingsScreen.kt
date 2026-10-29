@@ -123,7 +123,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
             item { PText(tr("< > меняют значение · OK — выбрать · BACK — к разделам"), 14.sp, t.colors.dim, Modifier.padding(bottom = 16.dp)) }
 
             if (page == "mascot") {
-                item {
+                item { ToggleRow(tr("Показывать маскота"), cfg.mascotEnabled) { v -> set { it.copy(mascotEnabled = v) } } }
+                nested("mascot-on", cfg.mascotEnabled) {
                     val m = mascotById(cfg.mascot)
                     SettingRow(
                         tr("Кто живёт в лаунчере"), m.name, hint = m.note,
@@ -131,50 +132,44 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                         onRight = { set { it.copy(mascot = MASCOTS.map { m -> m.id }.cycle(it.mascot, 1)) } },
                         trailing = { MascotSprite(m, 2, MascotMood.IDLE, t.animations, headroom = 1, modifier = Modifier.padding(start = 12.dp)) },
                     )
-                }
-                item { ToggleRow(tr("Показывать маскота"), cfg.mascotEnabled) { v -> set { it.copy(mascotEnabled = v) } } }
-                item { ToggleRow(tr("Маскот разговаривает"), cfg.mascotSpeaks, tr("Приветствие, название приложения в фокусе, итоги сценариев")) { v -> set { it.copy(mascotSpeaks = v) } } }
-                item {
-                    val levels = listOf(tr("молчит"), tr("редко"), tr("обычно"), tr("болтун"))
-                    SettingRow(tr("Болтливость"), levels[cfg.mascotChatter.coerceIn(0, 3)],
-                        hint = tr("Как часто маскот сам что-то говорит"),
-                        onLeft = { set { it.copy(mascotChatter = it.mascotChatter.stepIn(-1, 0..3)) } },
-                        onRight = { set { it.copy(mascotChatter = it.mascotChatter.stepIn(1, 0..3)) } })
-                }
-                item { ToggleRow(tr("Факты"), cfg.talkFacts, tr("Любопытные факты про котов, кино, космос, игры")) { v -> set { it.copy(talkFacts = v) } } }
-                item { ToggleRow(tr("Праздники"), cfg.talkHolidays, tr("Поздравляет с праздниками и памятными датами")) { v -> set { it.copy(talkHolidays = v) } } }
-                item {
-                    ToggleRow(tr("Свежие новости"), cfg.talkNews, tr("Заголовки выбранного источника, обновляются раз в час")) { v ->
-                        set { it.copy(talkNews = v) }
-                        if (v) app.news.start() else app.news.stop()
-                    }
-                }
-                if (cfg.talkNews) item {
-                    val ids = listOf("auto") + com.pixelden.launcher.weather.NewsSources.ALL.map { it.id } + "custom"
-                    fun name(id: String) = when (id) {
-                        "auto" -> tr("по языку")
-                        "custom" -> tr("свой адрес RSS")
-                        else -> com.pixelden.launcher.weather.NewsSources.ALL.first { it.id == id }.name
-                    }
-                    fun pick(step: Int) {
-                        set { it.copy(newsSource = ids.cycle(it.newsSource, step)) }
-                        pageScope.launch { app.news.refresh() }
-                    }
-                    SettingRow(tr("Источник новостей"), name(cfg.newsSource),
-                        hint = if (cfg.newsSource == "custom") cfg.newsCustomUrl.ifBlank { tr("OK — ввести адрес RSS") } else null,
-                        onLeft = { pick(-1) }, onRight = { pick(1) },
-                        onClick = { if (cfg.newsSource == "custom") newsUrlEdit = true else pick(1) })
-                }
-                item { ToggleRow(tr("Называть приложение в фокусе"), cfg.mascotNamesApps) { v -> set { it.copy(mascotNamesApps = v) } } }
-                item {
-                    SettingRow(tr("Засыпает через"), tr("{0} мин", (cfg.mascotSleepMinutes)),
-                        onLeft = { set { it.copy(mascotSleepMinutes = it.mascotSleepMinutes.stepIn(-1, 1..60)) } },
-                        onRight = { set { it.copy(mascotSleepMinutes = it.mascotSleepMinutes.stepIn(1, 1..60)) } })
-                }
-                item {
                     SettingRow(tr("Размер маскота"), "${cfg.mascotScale}",
                         onLeft = { set { it.copy(mascotScale = it.mascotScale.stepIn(-1, 2..6)) } },
                         onRight = { set { it.copy(mascotScale = it.mascotScale.stepIn(1, 2..6)) } })
+                    SettingRow(tr("Засыпает через"), tr("{0} мин", (cfg.mascotSleepMinutes)),
+                        onLeft = { set { it.copy(mascotSleepMinutes = it.mascotSleepMinutes.stepIn(-1, 1..60)) } },
+                        onRight = { set { it.copy(mascotSleepMinutes = it.mascotSleepMinutes.stepIn(1, 1..60)) } })
+                    ToggleRow(tr("Маскот разговаривает"), cfg.mascotSpeaks, tr("Приветствие, название приложения в фокусе, итоги сценариев")) { v -> set { it.copy(mascotSpeaks = v) } }
+                    // О чём говорит — только если вообще говорит.
+                    Nested(cfg.mascotSpeaks) {
+                        val levels = listOf(tr("молчит"), tr("редко"), tr("обычно"), tr("болтун"))
+                        SettingRow(tr("Болтливость"), levels[cfg.mascotChatter.coerceIn(0, 3)],
+                            hint = tr("Как часто маскот сам что-то говорит"),
+                            onLeft = { set { it.copy(mascotChatter = it.mascotChatter.stepIn(-1, 0..3)) } },
+                            onRight = { set { it.copy(mascotChatter = it.mascotChatter.stepIn(1, 0..3)) } })
+                        ToggleRow(tr("Называть приложение в фокусе"), cfg.mascotNamesApps) { v -> set { it.copy(mascotNamesApps = v) } }
+                        ToggleRow(tr("Факты"), cfg.talkFacts, tr("Любопытные факты про котов, кино, космос, игры")) { v -> set { it.copy(talkFacts = v) } }
+                        ToggleRow(tr("Праздники"), cfg.talkHolidays, tr("Поздравляет с праздниками и памятными датами")) { v -> set { it.copy(talkHolidays = v) } }
+                        ToggleRow(tr("Свежие новости"), cfg.talkNews, tr("Заголовки выбранного источника, обновляются раз в час")) { v ->
+                            set { it.copy(talkNews = v) }
+                            if (v) app.news.start() else app.news.stop()
+                        }
+                        Nested(cfg.talkNews) {
+                            val ids = listOf("auto") + com.pixelden.launcher.weather.NewsSources.ALL.map { it.id } + "custom"
+                            fun name(id: String) = when (id) {
+                                "auto" -> tr("по языку")
+                                "custom" -> tr("свой адрес RSS")
+                                else -> com.pixelden.launcher.weather.NewsSources.ALL.first { it.id == id }.name
+                            }
+                            fun pick(step: Int) {
+                                set { it.copy(newsSource = ids.cycle(it.newsSource, step)) }
+                                pageScope.launch { app.news.refresh() }
+                            }
+                            SettingRow(tr("Источник новостей"), name(cfg.newsSource),
+                                hint = if (cfg.newsSource == "custom") cfg.newsCustomUrl.ifBlank { tr("OK — ввести адрес RSS") } else null,
+                                onLeft = { pick(-1) }, onRight = { pick(1) },
+                                onClick = { if (cfg.newsSource == "custom") newsUrlEdit = true else pick(1) })
+                        }
+                    }
                 }
             }
 
@@ -230,10 +225,10 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                         set { it.copy(wallpaperByTime = v) }
                     }
                 }
-                if (cfg.wallpaperByTime) {
-                    items(TIME_SLOTS, key = { "slot" + it.first }) { (slot, label) ->
+                nested("slots", cfg.wallpaperByTime) {
+                    for ((slot, label) in TIME_SLOTS) {
                         val p = cfg.timeWallpapers[slot]
-                        SettingRow("   $label", wallName(p) ?: tr("как общие"),
+                        SettingRow(label, wallName(p) ?: tr("как общие"),
                             hint = if (p != null) tr("OK — выбрать · удержание OK — как общие") else tr("OK — выбрать"),
                             trailing = { WallThumb(p ?: cfg.wallpaperPath, cfg.background, Modifier.padding(start = 12.dp).size(64.dp, 36.dp)) },
                             onLongClick = { set { it.copy(timeWallpapers = it.timeWallpapers - slot) } },
@@ -246,7 +241,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                         onRight = { set { it.copy(wallpaperDim = it.wallpaperDim.stepIn(10, 0..90)) } })
                 }
                 item { ToggleRow(tr("Анимации"), cfg.animations) { v -> set { it.copy(animations = v) } } }
-                item {
+                // Переход между экранами — тоже анимация: без анимаций его нет.
+                nested("transition", cfg.animations) {
                     val ids = SCREEN_TRANSITIONS.map { it.first }
                     SettingRow(tr("Переход между экранами"), (SCREEN_TRANSITIONS.firstOrNull { it.first == cfg.screenTransition } ?: SCREEN_TRANSITIONS.first()).second,
                         onLeft = { set { it.copy(screenTransition = ids.cycle(it.screenTransition, -1)) } },
@@ -290,25 +286,21 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
 
             if (page == "weather") {
                 item { ToggleRow(tr("Показывать погоду"), cfg.weatherEnabled) { v -> set { it.copy(weatherEnabled = v) }; refreshWeather() } }
-                item {
+                nested("weather-on", cfg.weatherEnabled) {
                     SettingRow(tr("Город"), cfg.weatherCity ?: tr("не выбран"), hint = tr("OK — найти город по названию")) { cityEdit = true }
-                }
-                item {
                     SettingRow(
                         tr("Ключ API Яндекс Погоды"), if (cfg.yandexWeatherKey.isBlank()) tr("нет") else tr("задан"),
                         hint = tr("Без ключа погода берётся у Open-Meteo. Ключ выдают на developer.tech.yandex.ru"),
                         onLongClick = { set { it.copy(yandexWeatherKey = "") }; refreshWeather() },
                     ) { keyEdit = true }
-                }
-                item {
                     val w by app.weather.now.collectAsState()
                     val err by app.weather.error.collectAsState()
                     SettingRow(
                         tr("Источник"), err?.let { tr("ошибка") } ?: w?.source ?: "—",
                         hint = err ?: w?.let { tr("{0}°, {1} · обновлено ", (it.temp), (it.sky.text)) + java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(it.updatedAt)) },
                     )
+                    SettingRow(tr("Обновить сейчас")) { refreshWeather() }
                 }
-                item { SettingRow(tr("Обновить сейчас")) { refreshWeather() } }
             }
 
             if (page == "grid") {
@@ -448,30 +440,26 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                         if (v) app.web.start() else app.web.stop()
                     }
                 }
-                if (cfg.webPanel) {
-                    item {
-                        val ip = com.pixelden.launcher.web.WebServer.lanAddress()
-                        val url = "http://$ip:${com.pixelden.launcher.web.WebServer.PORT}"
-                        Row(
-                            Modifier.fillMaxWidth().padding(vertical = 10.dp)
-                                .pixelBox(t.colors.accent, t.colors.surface, t.border).padding(24.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                PText(tr("Откройте на телефоне:"), 16.sp, t.colors.dim)
-                                PText(if (ip != null) url else tr("ТВ не в сети"), 34.sp, t.colors.text, Modifier.padding(vertical = 6.dp))
-                                PText("PIN:  ${cfg.webPin}", 34.sp, t.colors.accent)
-                                PText(tr("Телефон должен быть в той же сети Wi-Fi."), 14.sp, t.colors.dim, Modifier.padding(top = 8.dp))
-                                if (ip != null) PText(tr("Или наведите камеру телефона на код — PIN вводить не придётся."), 14.sp, t.colors.dim, Modifier.padding(top = 4.dp), maxLines = 2)
-                            }
-                            // В ссылке сразу PIN: панель запомнит его и уберёт из адреса.
-                            if (ip != null) QrCode("$url/?pin=${cfg.webPin}", Modifier.padding(start = 24.dp).size(200.dp))
+                nested("phone-on", cfg.webPanel) {
+                    val ip = com.pixelden.launcher.web.WebServer.lanAddress()
+                    val url = "http://$ip:${com.pixelden.launcher.web.WebServer.PORT}"
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 10.dp)
+                            .pixelBox(t.colors.accent, t.colors.surface, t.border).padding(24.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            PText(tr("Откройте на телефоне:"), 16.sp, t.colors.dim)
+                            PText(if (ip != null) url else tr("ТВ не в сети"), 34.sp, t.colors.text, Modifier.padding(vertical = 6.dp))
+                            PText("PIN:  ${cfg.webPin}", 34.sp, t.colors.accent)
+                            PText(tr("Телефон должен быть в той же сети Wi-Fi."), 14.sp, t.colors.dim, Modifier.padding(top = 8.dp))
+                            if (ip != null) PText(tr("Или наведите камеру телефона на код — PIN вводить не придётся."), 14.sp, t.colors.dim, Modifier.padding(top = 4.dp), maxLines = 2)
                         }
+                        // В ссылке сразу PIN: панель запомнит его и уберёт из адреса.
+                        if (ip != null) QrCode("$url/?pin=${cfg.webPin}", Modifier.padding(start = 24.dp).size(200.dp))
                     }
-                    item {
-                        SettingRow(tr("Новый PIN"), hint = tr("Старый перестанет подходить — телефон спросит PIN заново")) {
-                            set { it.copy(webPin = com.pixelden.launcher.data.Defaults.newPin()) }
-                        }
+                    SettingRow(tr("Новый PIN"), hint = tr("Старый перестанет подходить — телефон спросит PIN заново")) {
+                        set { it.copy(webPin = com.pixelden.launcher.data.Defaults.newPin()) }
                     }
                 }
             }
@@ -479,15 +467,17 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
             if (page == "widgets") {
                 item { ToggleRow(tr("Ряд виджетов под часами"), cfg.showWidgets, tr("Можно включить до {0} виджетов", MAX_WIDGETS)) { v -> set { it.copy(showWidgets = v) }; if (v) app.rates.start() } }
                 // Порядок строк постоянный — переключение не двигает строку и не уводит фокус.
-                items(WIDGETS, key = { "w" + it.first }) { (id, name) ->
-                    ToggleRow(name, id in cfg.widgets) { on ->
-                        if (on && cfg.widgets.size >= MAX_WIDGETS) {
-                            toast(context, tr("Не больше {0} виджетов — сначала выключите какой-нибудь", MAX_WIDGETS))
-                            return@ToggleRow
-                        }
-                        // Новый виджет встаёт на своё место из общего списка, а не в конец.
-                        set { c -> c.copy(widgets = WIDGETS.map { it.first }.filter { w -> if (w == id) on else w in c.widgets }) }
-                        if (on && id == "rates") app.rates.start()
+                nested("widgets-on", cfg.showWidgets) {
+                    for ((id, name) in WIDGETS) {
+                        ToggleRow(name, id in cfg.widgets) { on ->
+                            if (on && cfg.widgets.size >= MAX_WIDGETS) {
+                                toast(context, tr("Не больше {0} виджетов — сначала выключите какой-нибудь", MAX_WIDGETS))
+                                return@ToggleRow
+                            }
+                            // Новый виджет встаёт на своё место из общего списка, а не в конец.
+                            set { c -> c.copy(widgets = WIDGETS.map { it.first }.filter { w -> if (w == id) on else w in c.widgets }) }
+                            if (on && id == "rates") app.rates.start()
+                    }
                     }
                 }
             }

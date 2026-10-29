@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -127,6 +128,30 @@ fun ToggleRow(label: String, value: Boolean, hint: String? = null, onChange: (Bo
         onLeft = { onChange(!value) },
         onRight = { onChange(!value) },
     )
+}
+
+/**
+ * Настройки, которые зависят от переключателя над ними: видны, только пока он включён, и выезжают под ним
+ * вложенным блоком — с отступом и полоской слева. Внутри можно вкладывать ещё такие же блоки.
+ */
+@Composable
+fun Nested(visible: Boolean, content: @Composable () -> Unit) {
+    val t = LocalDen.current
+    androidx.compose.animation.AnimatedVisibility(
+        visible,
+        enter = if (t.animations) androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn() else androidx.compose.animation.EnterTransition.None,
+        exit = if (t.animations) androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut() else androidx.compose.animation.ExitTransition.None,
+    ) {
+        Row(Modifier.fillMaxWidth().height(androidx.compose.foundation.layout.IntrinsicSize.Min).padding(start = 22.dp)) {
+            Box(Modifier.width(3.dp).fillMaxHeight().padding(bottom = 6.dp).background(t.colors.accent.copy(alpha = 0.45f)))
+            Column(Modifier.weight(1f).padding(start = 12.dp)) { content() }
+        }
+    }
+}
+
+/** То же для списка настроек: отдельный элемент списка с вложенным блоком. */
+fun LazyListScope.nested(key: String, visible: Boolean, content: @Composable () -> Unit) {
+    item(key = key) { Nested(visible, content) }
 }
 
 fun <T> List<T>.cycle(current: T, step: Int): T {

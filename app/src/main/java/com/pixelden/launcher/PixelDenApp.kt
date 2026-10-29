@@ -57,6 +57,8 @@ class PixelDenApp : Application() {
         web = com.pixelden.launcher.web.WebServer(this).also { if (store.current.webPanel) it.start() }
         com.pixelden.launcher.system.MemoryGuard.apply(store.current.memoryGuard)
         com.pixelden.launcher.system.NetStatus.start(this)
+        // Кнопки пульта и сценарии держатся на службе спецвозможностей — проверяем при каждом старте.
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) { com.pixelden.launcher.system.Setup.ensureAccessibility(this@PixelDenApp) }
         // Доступ к уведомлениям: если его ещё нет, пробуем включить тихо (без вопроса на экране).
         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val nm = getSystemService(android.app.NotificationManager::class.java)

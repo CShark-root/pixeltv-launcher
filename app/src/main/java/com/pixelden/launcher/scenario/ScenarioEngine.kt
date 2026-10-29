@@ -164,6 +164,10 @@ class ScenarioEngine(
 
     /** Ждём, пока поднимется служба спецвозможностей (после загрузки ей нужно несколько секунд). */
     private suspend fun service(timeoutMs: Long = 30_000): DenAccessibilityService {
+        // Службы нет — возможно, Android снял её при обновлении: включаем обратно и ждём, пока поднимется.
+        if (DenAccessibilityService.instance == null) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.pixelden.launcher.system.Setup.ensureAccessibility(context) }
+        }
         var waited = 0L
         while (waited < timeoutMs) {
             DenAccessibilityService.instance?.let { return it }

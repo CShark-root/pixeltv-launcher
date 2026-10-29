@@ -9,6 +9,30 @@ import com.pixelden.launcher.scenario.DebugLog
  * Нужна включённая «Отладка по сети»; при первом разе ТВ спросит «Разрешить отладку?».
  */
 object Setup {
+    /**
+     * Служба спецвозможностей (кнопки пульта, сценарии «нажать в меню») включена? Android иногда снимает её
+     * при обновлении приложения — тогда включаем обратно сами: прямой записью настройки (право WRITE_SECURE_SETTINGS
+     * выдаёт «Настроить всё»), а без права — через adb ТВ, без вопроса на экране. Блокирующий.
+     */
+    fun ensureAccessibility(context: Context): Boolean {
+        val cr = context.contentResolver
+        val ours = android.content.ComponentName(context, com.pixelden.launcher.scenario.DenAccessibilityService::class.java)
+        val current = android.provider.Settings.Secure.getString(cr, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
+            ?.takeIf { it.isNotBlank() && it != "null" }?.split(':').orEmpty()
+        val on = android.provider.Settings.Secure.getInt(cr, android.provider.Settings.Secure.ACCESSIBILITY_ENABLED, 0) == 1
+        if (on && current.any { android.content.ComponentName.unflattenFromString(it) == ours }) return true
+        // Чужие службы не трогаем — дописываем свою. В команду adb идут только записи вида «пакет/класс».
+        val value = (current.filter { Regex("[A-Za-z0-9_.]+/[A-Za-z0-9_.$]+").matches(it) } + ours.flattenToString()).distinct().joinToString(":")
+        val ok = runCatching {
+            android.provider.Settings.Secure.putString(cr, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, value)
+            android.provider.Settings.Secure.putInt(cr, android.provider.Settings.Secure.ACCESSIBILITY_ENABLED, 1)
+        }.isSuccess || runCatching {
+            AdbClient(context).shell("settings put secure enabled_accessibility_services '$value'; settings put secure accessibility_enabled 1", ask = false)
+        }.isSuccess
+        DebugLog.i(if (ok) "служба спецвозможностей была выключена — включил снова" else "служба спецвозможностей выключена, включить не вышло")
+        return ok
+    }
+
     fun grantAll(context: Context): String {
         val p = context.packageName
         val adb = AdbClient(context)
