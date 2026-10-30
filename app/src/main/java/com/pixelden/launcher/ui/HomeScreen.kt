@@ -35,6 +35,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -60,6 +61,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -483,7 +485,10 @@ private fun AppCard(
     val anim = if (t.animations) tween<Float>(180, easing = FastOutSlowInEasing) else snap()
     val scale by animateFloatAsState(if (focused && "scale" in effects) t.focusScale else 1f, anim, label = "scale")
     // «Затемнение остальных»: пока в фокусе другая карточка, эта приглушена.
-    val dimmed = "dim" in effects && !focused && CardFocus.key != null
+    // Читаем через derivedStateOf: иначе каждый шаг фокуса пересобирал ВСЕ карточки (сетка не ленивая),
+    // и этот тяжёлый кадр съедал начало анимации рамки — обводка дёргалась.
+    val anyFocused by remember { derivedStateOf { CardFocus.key != null } }
+    val dimmed = "dim" in effects && !focused && anyFocused
     val cardAlpha by animateFloatAsState(if (dimmed) 0.35f else 1f, anim, label = "alpha")
     // Рамка фокуса «прилетает»: сжимается на карточку снаружи и проявляется.
     val frameP by animateFloatAsState(if (focused) 1f else 0f, if (t.animations) tween(200, easing = FastOutSlowInEasing) else snap(), label = "frame")
@@ -503,7 +508,9 @@ private fun AppCard(
         }
     }
 
-    Column(Modifier.width(width).bringIntoViewRequester(bringLabel).graphicsLayer { alpha = cardAlpha }) {
+    // ModulateAlpha: без отдельного буфера. С ним полупрозрачная карточка обрезалась по своим границам —
+    // увеличение и «прилетающая» рамка во время перехода срезались, а в конце резко появлялись целиком.
+    Column(Modifier.width(width).bringIntoViewRequester(bringLabel).graphicsLayer { alpha = cardAlpha; compositingStrategy = CompositingStrategy.ModulateAlpha }) {
         Box(
             Modifier
                 .size(width, height)
