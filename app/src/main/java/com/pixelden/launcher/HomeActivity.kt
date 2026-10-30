@@ -128,7 +128,7 @@ class HomeActivity : ComponentActivity() {
                         when (screen) {
                             is Screen.Editor -> Screen.Scenarios
                             Screen.Log -> Screen.Settings("debug")
-                            is Screen.Settings -> if ((screen as Screen.Settings).page != null) Screen.Settings() else Screen.Home
+                            is Screen.Settings -> (screen as Screen.Settings).page?.let { Screen.Settings(com.pixelden.launcher.ui.settingsParent(it)) } ?: Screen.Home
                             else -> Screen.Home
                         }
                     )

@@ -49,6 +49,7 @@ import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -526,7 +527,7 @@ private fun AppCard(
                     drawContent()
                     if (frameP > 0.01f) pixelFrame(t.colors.accent.copy(alpha = frameP), null, t.border.dp.toPx(), inflate = (1f - frameP) * 10.dp.toPx())
                     val p = launchP.value
-                    if (p > 0f) drawRect(Color.White.copy(alpha = 0.55f * kotlin.math.sin(Math.PI.toFloat() * p)))
+                    if (p > 0f) drawRoundRect(Color.White.copy(alpha = 0.55f * kotlin.math.sin(Math.PI.toFloat() * p)), cornerRadius = androidx.compose.ui.geometry.CornerRadius(CORNER.toPx()))
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -534,7 +535,7 @@ private fun AppCard(
                 Modifier
                     .fillMaxSize()
                     .padding((t.border + 1).dp)
-                    .clipToBounds(),
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(CORNER - 2.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 val b = banner
@@ -643,7 +644,7 @@ private fun WatchCard(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.fillMaxSize().padding((t.border + 1).dp).clipToBounds(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().padding((t.border + 1).dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(CORNER - 2.dp)), contentAlignment = Alignment.Center) {
                 val p = poster
                 val i = icon
                 when {

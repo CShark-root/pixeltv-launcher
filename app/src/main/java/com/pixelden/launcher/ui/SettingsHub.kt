@@ -127,6 +127,47 @@ val SECTIONS = listOf(
     )) { "PixelTv ${BuildConfig.VERSION_NAME}" },
 )
 
+/**
+ * Раздел верхнего уровня — плитка на главном экране настроек. [pages] показываются внутри раздела подряд,
+ * каждая под своим заголовком; [links] — отдельные экраны, на них ведут строки-ссылки в конце раздела.
+ */
+class Group(
+    val key: String,
+    val title: String,
+    val icon: List<String>,
+    val pages: List<String>,
+    val links: List<String>,
+    val summary: (SummaryCtx) -> String,
+)
+
+val GROUPS = listOf(
+    Group("g_home", tr("Главный экран"), Icons.HOME, listOf("rows", "widgets", "clock", "grid", "weather"), emptyList()) {
+        listOfNotNull(
+            tr("избранное").takeIf { _ -> it.cfg.showFavorites }, tr("виджеты").takeIf { _ -> it.cfg.showWidgets },
+            tr("погода").takeIf { _ -> it.cfg.weatherEnabled }, tr("{0} колонок", it.cfg.columns),
+        ).joinToString(" · ")
+    },
+    Group("g_look", tr("Оформление"), Icons.LOOK, listOf("look", "effects"), emptyList()) {
+        (FONTS.firstOrNull { f -> f.first == it.cfg.font } ?: FONTS.first()).second +
+            (sceneName(it.cfg.wallpaperPath)?.let { s -> " · $s" } ?: if (it.cfg.wallpaperPath != null) tr(" · обои") else "")
+    },
+    Group("g_mascot", tr("Маскот"), Icons.MASCOT, listOf("mascot"), emptyList()) {
+        mascotById(it.cfg.mascot).name + if (it.cfg.mascotEnabled) "" else tr(" (скрыт)")
+    },
+    Group("g_tv", tr("Телевизор"), Icons.TV, listOf("tv"), listOf("health", "cleanup", "calib")) {
+        tr("подсветка {0}%", (it.backlight)) + tr(" · здоровье · чистка")
+    },
+    Group("g_apps", tr("Приложения"), Icons.APPS, emptyList(), listOf("catalog", "cats", "hidden")) {
+        tr("{0} установлено · каталог", it.appsCount)
+    },
+    Group("g_system", tr("Система"), Icons.GEAR, listOf("phone", "perm", "backup", "about"), listOf("debug")) {
+        "PixelTv ${BuildConfig.VERSION_NAME}" + if (it.cfg.webPanel) tr(" · с телефона") else ""
+    },
+)
+
+/** Куда ведёт BACK со страницы: со страницы раздела — в раздел, с раздела — на главный экран настроек (null). */
+fun settingsParent(page: String): String? = GROUPS.firstOrNull { page in it.pages || page in it.links }?.key
+
 /** Последняя открытая страница — на неё вернётся фокус при возврате на хаб. */
 private var lastSection: String? = null
 
@@ -159,7 +200,7 @@ fun SettingsHub(cfg: LauncherConfig, onOpen: (String) -> Unit) {
         runCatching { Settings.Global.getInt(context.contentResolver, "picture_backlight") }.getOrDefault(100)
     }
     val ctx = SummaryCtx(cfg, apps.size, backlight)
-    val restore = remember { lastSection ?: SECTIONS.first().key }
+    val restore = remember { lastSection?.takeIf { k -> GROUPS.any { it.key == k } } ?: GROUPS.first().key }
 
     Box(Modifier.fillMaxSize().background(t.colors.bg), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
@@ -174,10 +215,10 @@ fun SettingsHub(cfg: LauncherConfig, onOpen: (String) -> Unit) {
                     val gap = 20.dp
                     val tileW = (maxWidth - gap * 2) / 3
                     Column(verticalArrangement = Arrangement.spacedBy(gap)) {
-                        SECTIONS.chunked(3).forEach { row ->
+                        GROUPS.chunked(3).forEach { row ->
                             Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                                 row.forEach { s ->
-                                    SectionTile(s, ctx, tileW, autoFocus = s.key == restore) {
+                                    GroupTile(s, ctx, tileW, autoFocus = s.key == restore) {
                                         lastSection = s.key
                                         onOpen(s.key)
                                     }
@@ -191,8 +232,9 @@ fun SettingsHub(cfg: LauncherConfig, onOpen: (String) -> Unit) {
     }
 }
 
+/** Плитка раздела: иконка сверху, под ней название и краткое содержимое. */
 @Composable
-private fun SectionTile(s: Section, ctx: SummaryCtx, width: Dp, autoFocus: Boolean, onClick: () -> Unit) {
+private fun GroupTile(g: Group, ctx: SummaryCtx, width: Dp, autoFocus: Boolean, onClick: () -> Unit) {
     val t = LocalDen.current
     var focused by remember { mutableStateOf(false) }
     val fr = remember { FocusRequester() }
@@ -200,7 +242,7 @@ private fun SectionTile(s: Section, ctx: SummaryCtx, width: Dp, autoFocus: Boole
     val anim = if (t.animations) tween<Float>(180, easing = FastOutSlowInEasing) else snap()
     val p by animateFloatAsState(if (focused) 1f else 0f, anim, label = "tile")
 
-    Row(
+    Column(
         Modifier
             .width(width)
             .focusRequester(fr)
@@ -210,18 +252,10 @@ private fun SectionTile(s: Section, ctx: SummaryCtx, width: Dp, autoFocus: Boole
                 drawContent()
                 if (p > 0.01f) pixelFrame(t.colors.accent.copy(alpha = p), null, t.border.dp.toPx(), inflate = (1f - p) * 8.dp.toPx())
             }
-            .padding(horizontal = 20.dp, vertical = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 20.dp, vertical = 18.dp),
     ) {
-        PixelIcon(
-            s.icon, 5,
-            accent = if (focused) t.colors.accent else t.colors.text.copy(alpha = 0.75f),
-            // Светлые детали без фокуса — приглушённый текст, а не цвет плитки: иначе они сливаются с фоном.
-            light = if (focused) t.colors.text else t.colors.text.copy(alpha = 0.32f).compositeOver(t.colors.surface),
-        )
-        Column(Modifier.padding(start = 18.dp)) {
-            PText(s.title, 20.sp, if (focused) t.colors.text else t.colors.text.copy(alpha = 0.85f))
-            PText(s.summary(ctx), 14.sp, if (focused) t.colors.accent else t.colors.dim, Modifier.padding(top = 4.dp))
-        }
+        StickerIcon(g.icon, focused, pixel = 3.dp)
+        PText(g.title, 22.sp, if (focused) t.colors.text else t.colors.text.copy(alpha = 0.85f), Modifier.padding(top = 10.dp))
+        PText(g.summary(ctx), 14.sp, if (focused) t.colors.accent else t.colors.dim, Modifier.padding(top = 4.dp))
     }
 }

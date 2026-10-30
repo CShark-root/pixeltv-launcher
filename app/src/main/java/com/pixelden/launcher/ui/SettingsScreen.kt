@@ -71,13 +71,13 @@ fun SettingsScreen(
     when (page) {
         null -> SettingsHub(cfg, onOpenPage)
         // Калибровке нужен весь экран без рамок настроек.
-        "calib" -> CalibrationScreen(onExit = onBackToHub)
-        else -> SettingsPage(cfg, page, onOpenLog)
+        "calib" -> CalibrationScreen(onExit = { settingsParent("calib")?.let(onOpenPage) ?: onBackToHub() })
+        else -> SettingsPage(cfg, page, onOpenLog, onOpenPage)
     }
 }
 
 @Composable
-private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Unit) {
+private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Unit, onOpenPage: (String) -> Unit) {
     val app = PixelDenApp.instance
     val store = app.store
     val context = LocalContext.current
@@ -85,6 +85,11 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
     val apps by app.apps.apps.collectAsState()
     val first = rememberAutoFocus()
     val section = SECTIONS.firstOrNull { it.key == page }
+    // Раздел верхнего уровня или страница внутри раздела.
+    val group = GROUPS.firstOrNull { it.key == page }
+    val parent = group ?: GROUPS.firstOrNull { page in it.pages || page in it.links }
+    /** Показывать ли на этой странице настройки страницы [key]: сама страница или раздел, в который она входит. */
+    fun show(key: String) = page == key || group?.pages?.contains(key) == true
     var renameCat by remember { mutableStateOf<Category?>(null) }
     var cityEdit by remember { mutableStateOf(false) }
     var keyEdit by remember { mutableStateOf(false) }
@@ -102,7 +107,7 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
     var tvBacklight by remember { mutableStateOf(readBacklight(context)) }
     // Сканирование папок с картинками — в фоне и только на странице оформления.
     val wallpapers by produceState(emptyList<String>(), page) {
-        if (page == "look") value = withContext(Dispatchers.IO) { listWallpapers() }
+        if (show("look")) value = withContext(Dispatchers.IO) { listWallpapers() }
     }
 
     fun set(f: (LauncherConfig) -> LauncherConfig) = store.update(f)
@@ -113,16 +118,29 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
             Modifier.widthIn(max = 980.dp).fillMaxSize().focusRequester(first),
             contentPadding = PaddingValues(horizontal = 40.dp, vertical = 32.dp),
         ) {
-            item { PText(tr("Настройки  >  {0}", (section?.title ?: page)), 15.sp, t.colors.dim) }
+            val title = group?.title ?: section?.title ?: page
+            /** Заголовок страницы внутри раздела — только когда в разделе их несколько. */
+            fun LazyListScope.groupTitle(key: String) {
+                if (group != null && group.pages.size > 1) item(key = "title-$key") { SectionTitle(SECTIONS.firstOrNull { it.key == key }?.title ?: key) }
+            }
+            // Страницы раздела собираются здесь и выводятся ниже в порядке раздела.
+            val blocks = mutableMapOf<String, LazyListScope.() -> Unit>()
+            item {
+                PText(
+                    listOfNotNull(tr("Настройки"), parent?.title?.takeIf { group == null }, title).joinToString("  >  "),
+                    15.sp, t.colors.dim,
+                )
+            }
             item {
                 Row(Modifier.padding(top = 4.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    section?.let { PixelIcon(it.icon, 6, t.colors.accent, t.colors.text, Modifier.padding(end = 16.dp)) }
-                    PText(section?.title ?: page, 40.sp, t.colors.text)
+                    parent?.let { StickerIcon(it.icon, focused = true, modifier = Modifier.padding(end = 16.dp), pixel = 3.dp) }
+                    PText(title, 40.sp, t.colors.text)
                 }
             }
             item { PText(tr("< > меняют значение · OK — выбрать · BACK — к разделам"), 14.sp, t.colors.dim, Modifier.padding(bottom = 16.dp)) }
 
-            if (page == "mascot") {
+            blocks["mascot"] = {
+                groupTitle("mascot")
                 item { ToggleRow(tr("Показывать маскота"), cfg.mascotEnabled) { v -> set { it.copy(mascotEnabled = v) } } }
                 nested("mascot-on", cfg.mascotEnabled) {
                     val m = mascotById(cfg.mascot)
@@ -173,7 +191,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
-            if (page == "look") {
+            blocks["look"] = {
+                groupTitle("look")
                 item {
                     val langs = com.pixelden.launcher.i18n.I18n.LANGUAGES
                     fun pick(step: Int) {
@@ -260,7 +279,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
-            if (page == "effects") {
+            blocks["effects"] = {
+                groupTitle("effects")
                 item { PText(tr("Можно включать несколько сразу — они сочетаются."), 14.sp, t.colors.dim, Modifier.padding(4.dp, 0.dp, 0.dp, 8.dp)) }
                 items(FOCUS_EFFECTS, key = { "fx" + it.first }) { (id, label) ->
                     ToggleRow(label.removePrefix(tr("Только ")), id in cfg.focusEffects) { on ->
@@ -269,7 +289,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
-            if (page == "tv") {
+            blocks["tv"] = {
+                groupTitle("tv")
                 item {
                     SettingRow(tr("Подсветка экрана"), "$tvBacklight%",
                         hint = tr("Меняет подсветку панели (то же, что в настройках изображения ТВ)"),
@@ -284,7 +305,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
-            if (page == "weather") {
+            blocks["weather"] = {
+                groupTitle("weather")
                 item { ToggleRow(tr("Показывать погоду"), cfg.weatherEnabled) { v -> set { it.copy(weatherEnabled = v) }; refreshWeather() } }
                 nested("weather-on", cfg.weatherEnabled) {
                     SettingRow(tr("Город"), cfg.weatherCity ?: tr("не выбран"), hint = tr("OK — найти город по названию")) { cityEdit = true }
@@ -303,7 +325,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
-            if (page == "grid") {
+            blocks["grid"] = {
+                groupTitle("grid")
                 item {
                     SettingRow(tr("Колонок во «Все приложения»"), "${cfg.columns}",
                         onLeft = { set { it.copy(columns = it.columns.stepIn(-1, 3..10)) } },
@@ -318,14 +341,16 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 item { ToggleRow(tr("Баннеры приложений"), cfg.preferBanners, tr("Выкл — везде иконки")) { v -> set { it.copy(preferBanners = v) } } }
             }
 
-            if (page == "clock") {
+            blocks["clock"] = {
+                groupTitle("clock")
                 item { ToggleRow(tr("24-часовой формат"), cfg.clock24h) { v -> set { it.copy(clock24h = v) } } }
                 item { ToggleRow(tr("Секунды"), cfg.showSeconds) { v -> set { it.copy(showSeconds = v) } } }
                 item { ToggleRow(tr("Дата"), cfg.showDate) { v -> set { it.copy(showDate = v) } } }
                 item { ToggleRow(tr("Приветствие при запуске"), cfg.greeting) { v -> set { it.copy(greeting = v) } } }
             }
 
-            if (page == "rows") {
+            blocks["rows"] = {
+                groupTitle("rows")
                 item { ToggleRow(tr("Избранное"), cfg.showFavorites) { v -> set { it.copy(showFavorites = v) } } }
                 item {
                     ToggleRow(tr("Продолжить просмотр"), cfg.showWatchNext, tr("Фильмы и серии, на которых вы остановились, — их сами отмечают приложения")) { v ->
@@ -369,7 +394,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
-            if (page == "perm") {
+            blocks["perm"] = {
+                groupTitle("perm")
                 item {
                     SettingRow(
                         tr("Выдать все права автоматически"),
@@ -420,7 +446,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
-            if (page == "backup") {
+            blocks["backup"] = {
+                groupTitle("backup")
                 item {
                     SettingRow(tr("Сохранить настройки и сценарии"), hint = store.exportFile().absolutePath) {
                         toast(context, store.exportBackup().fold({ tr("Сохранено: {0}", (it.name)) }, { tr("Ошибка: {0}", (it.message)) }))
@@ -433,7 +460,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
-            if (page == "phone") {
+            blocks["phone"] = {
+                groupTitle("phone")
                 item {
                     ToggleRow(tr("Настройка с телефона"), cfg.webPanel, tr("Страница в домашней сети: сценарии, обои, порядок приложений, текст на ТВ")) { v ->
                         set { it.copy(webPanel = v) }
@@ -464,7 +492,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 }
             }
 
-            if (page == "widgets") {
+            blocks["widgets"] = {
+                groupTitle("widgets")
                 item { ToggleRow(tr("Ряд виджетов под часами"), cfg.showWidgets, tr("Можно включить до {0} виджетов", MAX_WIDGETS)) { v -> set { it.copy(showWidgets = v) }; if (v) app.rates.start() } }
                 // Порядок строк постоянный — переключение не двигает строку и не уводит фокус.
                 nested("widgets-on", cfg.showWidgets) {
@@ -500,7 +529,8 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                 item { CleanupPanel(cfg) }
             }
 
-            if (page == "about") {
+            blocks["about"] = {
+                groupTitle("about")
                 item { SettingRow("PixelTv ${BuildConfig.VERSION_NAME}", hint = tr("Открытый код (GPL-3.0): github.com/{0}\nШрифты: Tiny5, Handjet, Press Start 2P, Pixelify Sans (SIL OFL)", (BuildConfig.UPDATE_REPO.ifBlank { "…/pixeltv-launcher" }))) }
                 item { SettingRow(tr("Пройти мастер настройки заново"), hint = tr("Язык, права, маскот, погода, избранное, чистка")) { set { it.copy(onboardingDone = false, onboardingStep = 0) } } }
                 if (com.pixelden.launcher.system.Updater.enabled) {
@@ -528,6 +558,17 @@ private fun SettingsPage(cfg: LauncherConfig, page: String, onOpenLog: () -> Uni
                             com.pixelden.launcher.system.Updater.apply(v)
                         }
                     }
+                }
+            }
+
+            for (k in group?.pages ?: listOf(page)) blocks[k]?.invoke(this)
+
+            // Отдельные экраны раздела — строками-ссылками в конце.
+            if (group != null && group.links.isNotEmpty()) {
+                if (group.pages.isNotEmpty()) item(key = "links-title") { SectionTitle(tr("Ещё")) }
+                items(group.links, key = { "link-$it" }) { key ->
+                    val s = SECTIONS.first { it.key == key }
+                    SettingRow(s.title, "›", hint = s.summary(SummaryCtx(cfg, apps.size, tvBacklight))) { onOpenPage(key) }
                 }
             }
         }

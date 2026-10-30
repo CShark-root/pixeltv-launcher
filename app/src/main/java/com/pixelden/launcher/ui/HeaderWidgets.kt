@@ -72,10 +72,10 @@ object WidgetDialogs {
     var notices by mutableStateOf(false)
 }
 
-private val ICON_CAL = listOf("#.#...#.#", "#########", "#+++++++#", "#+#+#+#+#", "#+++++++#", "#+#+#+#+#", "#+++++++#", "#########", ".........")
-private val ICON_RATE = listOf("....#....", "..#####..", ".#+.#....", ".#+.#....", "..#####..", "....#.+#.", "....#.+#.", "..#####..", "....#....")
-private val ICON_MOON = listOf("...###...", "..##.....", ".##......", ".##...+..", ".##..+++.", ".##...+..", "..##.....", "...###...", ".........")
-private val ICON_RAM = listOf(".#.#.#.#.", "#########", "#+++++++#", "#+##+##+#", "#+##+##+#", "#+++++++#", "#########", ".#.#.#.#.", ".........")
+private val ICON_CAL = Icons.CALENDAR
+private val ICON_RATE = Icons.COIN
+private val ICON_MOON = Icons.TIMER
+private val ICON_RAM = Icons.MEMORY
 
 @Composable
 fun WidgetRow(cfg: LauncherConfig, onTopFocus: () -> Unit, onOpenHealth: () -> Unit) {
@@ -115,7 +115,7 @@ private fun WidgetTile(
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PixelIcon(icon, 3, if (focused) t.colors.accent else t.colors.text.copy(alpha = 0.7f), if (focused) t.colors.text else t.colors.surfaceHi)
+        StickerIcon(icon, focused, pixel = 1.5.dp)
         Column(Modifier.padding(start = 12.dp)) {
             PText(title, 13.sp, t.colors.dim)
             PText(value, 16.sp, if (focused) t.colors.text else t.colors.text.copy(alpha = 0.9f), maxLines = 2)
@@ -188,10 +188,10 @@ private fun days(n: Int) = "$n " + when {
     else -> tr("дней")
 }
 
-private val ICON_SUN = listOf("....y....", ".y.....y.", "...yyy...", "..yyyyy..", "y.yyyyy.y", "..yyyyy..", "...yyy...", ".y.....y.", "....y....")
-private val ICON_NET = listOf("....#....", "...###...", "..#.#.#..", "....#....", "....#....", "..#.#.#..", "...###...", "....#....", ".........")
-private val ICON_FULL = listOf("...###...", ".##+++##.", ".#+++++#.", "#+++++++#", "#+++++++#", "#+++++++#", ".#+++++#.", ".##+++##.", "...###...")
-private val ICON_NEWS = listOf("#########", "#+++++++#", "#+#####+#", "#+++++++#", "#+##+##+#", "#+++++++#", "#+##+##+#", "#########", ".........")
+private val ICON_SUN = Icons.SUN
+private val ICON_NET = Icons.TRAFFIC
+private val ICON_FULL = Icons.MOON
+private val ICON_NEWS = Icons.NEWS
 
 /** Восход и закат по координатам города — считается на ТВ, без интернета. */
 @Composable
@@ -372,10 +372,10 @@ fun NoticeShade(onOpenCatalog: () -> Unit) {
     }
 }
 
-private val ICON_BELL = listOf("....#....", "...###...", "..#####..", "..#####..", "..#####..", ".#######.", "#########", ".........", "....#....")
-private val ICON_UPD = listOf("....#....", "....#....", "....#....", "..#.#.#..", "...###...", "....#....", "#.......#", "#.......#", "#########")
-private val ICON_CLEAR = listOf(".........", "..#####..", "#########", ".#.....#.", ".#.#.#.#.", ".#.#.#.#.", ".#.#.#.#.", ".#.....#.", "..#####..")
-private val ICON_OFF = listOf("#.......#", ".#.....#.", "..#...#..", "...#.#...", "....#....", "...#.#...", "..#...#..", ".#.....#.", "#.......#")
+private val ICON_BELL = Icons.BELL
+private val ICON_UPD = Icons.DOWNLOAD
+private val ICON_CLEAR = Icons.TRASH
+private val ICON_OFF = Icons.SIGNAL_OFF
 
 /** Строка шторки: значок, текст в одну строку, справа — время. */
 @Composable
@@ -408,7 +408,7 @@ private fun ShadeRow(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PixelIcon(icon, 2, if (focused) t.colors.accent else t.colors.text.copy(alpha = 0.7f), t.colors.surfaceHi)
+        StickerIcon(icon, focused, pixel = 1.5.dp)
         PText(text, 15.sp, if (focused) t.colors.text else t.colors.dim, Modifier.weight(1f).padding(start = 12.dp), maxLines = 1)
         right?.let { PText(it, 13.sp, t.colors.dim, Modifier.padding(start = 12.dp)) }
     }
@@ -489,8 +489,8 @@ fun RatesChooser(cfg: LauncherConfig) {
 private val NET_OK = Color(0xFF6FCF7F)
 private val NET_WARN = Color(0xFFFFC857)
 private val NET_BAD = Color(0xFFE5604D)
-private val ICON_WIFI_BIG = listOf(".........", ".#######.", "#.......#", "..#####..", ".#.....#.", "...###...", "..#...#..", "....#....", ".........")
-private val ICON_ETH_BIG = listOf("..#####..", "..#+#+#..", "..#####..", "..#####..", "...###...", "....#....", "....#....", "....#....", "....#....")
+private val ICON_WIFI_BIG = Icons.SIGNAL
+private val ICON_ETH_BIG = Icons.ETHERNET
 
 /**
  * Карточка подключения вверху шторки: крупный значок, тип (Wi-Fi / кабель), цветная метка «есть интернет»,
@@ -533,13 +533,13 @@ private fun NetCard(net: com.pixelden.launcher.system.NetState, focusRequester: 
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PixelIcon(
+        StickerIcon(
             when (kind) {
                 com.pixelden.launcher.system.NetState.Kind.ETHERNET -> ICON_ETH_BIG
                 com.pixelden.launcher.system.NetState.Kind.WIFI -> ICON_WIFI_BIG
                 com.pixelden.launcher.system.NetState.Kind.NONE -> ICON_OFF
             },
-            5, color, t.colors.surfaceHi,
+            focused, pixel = 3.dp,
         )
         Column(Modifier.weight(1f).padding(start = 18.dp)) {
             PText(

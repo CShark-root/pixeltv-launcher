@@ -17,10 +17,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -160,22 +162,24 @@ fun PText(
     )
 }
 
-/** Рамка с «ступенчатыми» пиксельными углами. */
-/** [inflate] > 0 рисует рамку снаружи границ на это расстояние (для анимации «рамка сжимается на карточку»). */
+/** Скругление углов карточек, кнопок и рамок — одно на весь интерфейс. */
+val CORNER = 8.dp
+
+/**
+ * Рамка и заливка со скруглёнными углами. [step] — толщина рамки.
+ * [inflate] > 0 рисует рамку снаружи границ на это расстояние (для анимации «рамка сжимается на карточку»).
+ */
 fun DrawScope.pixelFrame(color: Color, fill: Color?, step: Float, inflate: Float = 0f) {
     val x0 = -inflate
     val y0 = -inflate
     val w = size.width + 2 * inflate
     val h = size.height + 2 * inflate
-    if (fill != null) {
-        drawRect(fill, Offset(x0 + step, y0), Size(w - 2 * step, h))
-        drawRect(fill, Offset(x0, y0 + step), Size(w, h - 2 * step))
-    }
+    val r = CORNER.toPx().coerceAtMost(minOf(w, h) / 2)
+    if (fill != null) drawRoundRect(fill, Offset(x0, y0), Size(w, h), CornerRadius(r))
     if (color.alpha > 0f) {
-        drawRect(color, Offset(x0 + step, y0), Size(w - 2 * step, step))
-        drawRect(color, Offset(x0 + step, y0 + h - step), Size(w - 2 * step, step))
-        drawRect(color, Offset(x0, y0 + step), Size(step, h - 2 * step))
-        drawRect(color, Offset(x0 + w - step, y0 + step), Size(step, h - 2 * step))
+        // Обводка рисуется внутрь, чтобы не вылезать за размер элемента.
+        val s = step.coerceAtMost(3.dp.toPx())
+        drawRoundRect(color, Offset(x0 + s / 2, y0 + s / 2), Size(w - s, h - s), CornerRadius((r - s / 2).coerceAtLeast(0f)), style = Stroke(s))
     }
 }
 
